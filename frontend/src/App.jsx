@@ -2,8 +2,6 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import {
   processRows,
-  OUT_SKILL_COL,
-  OUT_CORE_COL,
 } from "./processing.js";
 
 export default function App() {
@@ -71,7 +69,9 @@ export default function App() {
   const download = (mappedOnly = false) => {
     if (!result) return;
     const rows = mappedOnly
-      ? result.rows.filter((r) => String(r[OUT_CORE_COL] ?? "").trim() !== "")
+      ? result.rows.filter(
+          (r) => String(r["CoreSkill"] ?? "").trim() !== ""
+        )
       : result.rows;
     if (!rows.length) {
       setError("No rows have a mapped core skill to export.");
@@ -91,7 +91,7 @@ export default function App() {
   }, [result]);
 
   const newCols = useMemo(
-    () => new Set([OUT_SKILL_COL, OUT_CORE_COL]),
+    () => new Set(["CoreSkill", "Detail Skill Set", "Ranking/Score"]),
     []
   );
 

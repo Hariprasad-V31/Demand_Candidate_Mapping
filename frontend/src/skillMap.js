@@ -1,10 +1,10 @@
 // Detail-skill -> Core-skill mapping (ported from add_priority_skill.py).
 // Each list holds "Skill Name [ Ex" prefixes; only the skill name is used.
 export const SKILL_MAP = {
-  Java: ["Core Java [ E1", "Core Java [ E2", "Core Java [ E3", "Core Java [ E4", "Advanced Java Concepts [ E1", "Advanced Java Concepts [ E2", "Advanced Java Concepts [ E3", "Java - JDBC [ E1", "Java - JDBC [ E2", "Java - JDBC [ E3", "Java Architecture [ E1", "Java Architecture [ E2", "Java Architecture [ E3", "Java API Management &amp; Microservices [ E1", "Java API Management &amp; Microservices [ E2", "Java API Management &amp; Microservices [ E2"],
+  Java: ["Core Java [ E1", "Core Java [ E2", "Core Java [ E3", "Core Java [ E4", "Advanced Java Concepts [ E1", "Advanced Java Concepts [ E2", "Advanced Java Concepts [ E3", "Java - JDBC [ E1", "Java - JDBC [ E2", "Java - JDBC [ E3", "Java Architecture [ E1", "Java Architecture [ E2", "Java Architecture [ E3"],
   ReactJS: ["Digital : ReactJS [ E1", "Digital : ReactJS [ E2", "Digital : ReactJS [ E3", "Digital : ReactJS [ E1", "Digital : ReactJS [ E2", "Digital : ReactJS [ E3"],
   "Spring Boot": ["Spring Boot [ E1", "Spring Boot [ E2", "Spring Boot [ E3"],
-  Microservices: ["Microservices [ E1", "Microservices [ E2", "Microservices [ E3"],
+  Microservices: ["Microservices [ E1", "Microservices [ E2", "Microservices [ E3", "Java API Management &amp; Microservices [ E1", "Java API Management &amp; Microservices [ E2", "Java API Management &amp; Microservices [ E3"],
   Databricks: ["Databricks [ E1", "Databricks [ E2", "Databricks [ E3", "PySpark [ E1", "PySpark [ E2", "PySpark [ E3"],
   "Data Engineering": ["Google Data Engineering [ E1", "Google Data Engineering [ E2", "Google Data Engineering [ E3"],
   Python: ["Python [ E1", "Python [ E1", "Python [ E2", "Python [ E2", "Python [ E3", "Python [ E3", "Python [ E4"],

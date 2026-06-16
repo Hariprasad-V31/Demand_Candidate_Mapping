@@ -5,6 +5,127 @@ export const PRIMARY_COL = "Primary";
 export const SECONDARY_COL = "Secondary";
 export const OUT_SKILL_COL = "Highest Priority Detailed Skillset";
 export const OUT_CORE_COL = "Mapped Core Skill";
+export const OUT_SCORE_COL = "Score";
+
+// Fixed output layout. `keys` are header keywords matched against the input
+// (normalized, alphanumeric only); `computed` pulls from a value generated
+// during processing. Unmatched source columns are emitted blank.
+export const OUTPUT_TEMPLATE = [
+  { out: "QT", keys: ["qt"] },
+  { out: "Week", keys: ["week"] },
+  { out: "Date", keys: ["date"] },
+  { out: "Profile shared time", keys: ["profilesharedtime", "sharedtime"] },
+  { out: "Service Line(DU)", keys: ["serviceline", "serviceline du", "du"] },
+  { out: "profile shared by", keys: ["profilesharedby", "sharedby"] },
+  { out: "Source", keys: ["source"] },
+  { out: "Location", keys: ["location"] },
+  { out: "War room(Y/N)", keys: ["warroom"] },
+  { out: "Emp", keys: ["empid", "employeeid", "emp"] },
+  { out: "Emp Name", keys: ["empname", "employeename", "candidatename", "name"] },
+  { out: "Contact Number", keys: ["contactnumber", "contact", "mobile", "phone"] },
+  { out: "Grade", keys: ["grade"] },
+  { out: "Exp", keys: ["expbucket", "experience", "exp"] },
+  { out: "CoreSkill", computed: OUT_CORE_COL },
+  { out: "Detail Skill Set", computed: OUT_SKILL_COL },
+  { out: "Portfolio", portfolio: true },
+  { out: "Ranking/Score", computed: OUT_SCORE_COL },
+];
+
+// Core skill -> Portfolio mapping. Keys are matched against the (relabeled)
+// CoreSkill value, normalized to lowercase alphanumerics. Empty string => blank.
+const CORE_TO_PORTFOLIO_RAW = {
+  Java: "EBP",
+  ReactJS: "",
+  Databricks: "Data / EBP",
+  "Data Engineering": "Data / EBP",
+  Angular: "EBP",
+  Linux: "Infra",
+  "Automation Testing": "Channels",
+  "Manual Testing": "",
+  "SAP ABAP": "EBP (SAP)",
+  "SAP Basis": "EBP (SAP)",
+  "RPA UI path": "Infra",
+  STIBO: "",
+  VMWare: "Infra",
+  "Network engineer": "",
+  Mulesoft: "EBP",
+  PLM: "EBP",
+  PeopleSoft: "",
+  "Product Manager": "EBP",
+  "Program Manager": "Channels / Infra / Programme",
+  "Solution Architect": "Data / Infra / Channels",
+  "Business Analyst": "Data / Channels",
+  Cybersecurity: "",
+  "Oracle HCM": "EBP (HR)",
+  "Power BI": "Data",
+  MiddleWare: "Infra",
+  "Performance Testing": "",
+  Mainframe: "",
+  DevOps: "",
+  "Database Engineer": "Infra",
+  Apigee: "",
+  "SQL Developer": "Channels",
+  "SCCM Engineer": "Infra",
+  "Data Modeller": "Data",
+  "Incident Manager": "Data / EBP",
+  "Change Management": "",
+  "Data stage": "EBP",
+  "SharePoint Admin": "Infra",
+  "O365 Support": "Infra",
+  "VMO Lead": "Infra",
+  "Software Asset Manager": "Infra",
+  "Sterling OMS": "Channels",
+  "PL/SQL": "EBP",
+  Python: "",
+  "SAP S4 HANA Finance": "EBP (SAP)",
+  "IBM WMQ": "EBP / Infra",
+  "Java backend": "EBP / Channels",
+  "Java-Backend": "EBP / Channels",
+};
+const CORE_TO_PORTFOLIO = new Map(
+  Object.entries(CORE_TO_PORTFOLIO_RAW).map(([k, v]) => [
+    k.toLowerCase().replace(/[^a-z0-9]/g, ""),
+    v,
+  ])
+);
+
+// Resolve the Portfolio value for a (relabeled) core skill.
+function portfolioForCore(core) {
+  const key = String(core ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  return CORE_TO_PORTFOLIO.get(key) ?? "";
+}
+
+// Normalize a header to lowercase alphanumerics for template matching.
+function normTemplateHeader(header) {
+  return String(header).toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+// Spring Boot and Microservices core skills are grouped as "Java-Backend".
+function relabelCoreSkill(core) {
+  const key = String(core).trim().toLowerCase();
+  if (key === "spring boot" || key === "microservices") return "Java-Backend";
+  return core;
+}
+
+// Find the input column matching any of `keys` (exact first, then substring),
+// skipping columns already assigned via `used`.
+function matchTemplateColumn(columns, used, keys) {
+  for (const key of keys) {
+    const k = normTemplateHeader(key);
+    const exact = columns.find(
+      (c) => !used.has(c) && normTemplateHeader(c) === k
+    );
+    if (exact) return exact;
+  }
+  for (const key of keys) {
+    const k = normTemplateHeader(key);
+    const partial = columns.find(
+      (c) => !used.has(c) && normTemplateHeader(c).includes(k)
+    );
+    if (partial) return partial;
+  }
+  return null;
+}
 
 // Matches an [ E0 ... ] level block (E00, E01 are not matched due to \b).
 const E0_PATTERN = /\[\s*E0\b[^\]]*\]/;
@@ -202,7 +323,71 @@ export function detectColumns(columns) {
     findColumn(columns, "experience") ||
     findColumn(columns, "exp") ||
     findColumn(columns, "bucket");
-  return { primary, secondary, experience };
+  const grade = findColumn(columns, "grade");
+  // "No. of Days Unallocated" / "Unallocated Days" / "Aging".
+  const daysUnallocated =
+    findColumn(columns, "unallocated") ||
+    findColumn(columns, "aging") ||
+    findColumn(columns, "days");
+  return { primary, secondary, experience, grade, daysUnallocated };
+}
+
+// Parse the first number out of a cell (used for days unallocated).
+function parseNumber(value) {
+  if (value === null || value === undefined) return NaN;
+  if (typeof value === "number") return value;
+  const match = String(value).match(/-?\d+(\.\d+)?/);
+  return match ? parseFloat(match[0]) : NaN;
+}
+
+// Fixed points for years of experience (uses bucket lower bound).
+function experienceScore(exp) {
+  if (Number.isNaN(exp)) return 0;
+  if (exp >= 11) return 50;
+  if (exp >= 9) return 40;
+  if (exp >= 7) return 30;
+  if (exp >= 5) return 20;
+  return 0;
+}
+
+// Fixed points for number of days unallocated (fewer days -> more points).
+function daysScore(days) {
+  if (Number.isNaN(days)) return 0;
+  if (days < 10) return 50;
+  if (days < 20) return 45;
+  if (days < 30) return 40;
+  if (days < 40) return 30;
+  if (days < 50) return 20;
+  if (days <= 55) return 10;
+  return 5;
+}
+
+// Only candidates in these grades are kept (case-insensitive match).
+export const ALLOWED_GRADES = [
+  "S1",
+  "BPO1",
+  "BPO2",
+  "BPO3",
+  "BPO4",
+  "BPO5",
+  "BPO6",
+  "CS1",
+  "CS3S",
+  "C1",
+  "C2",
+  "C3A",
+  "C3B",
+  "B",
+];
+const ALLOWED_GRADE_SET = new Set(
+  ALLOWED_GRADES.map((g) => g.toUpperCase())
+);
+
+function normalizeGrade(value) {
+  return String(value ?? "")
+    .replace(/\u00a0/g, " ")
+    .trim()
+    .toUpperCase();
 }
 
 // Parse a numeric experience value out of a cell. Handles plain numbers,
@@ -228,8 +413,13 @@ export function processRows(rows, options) {
   if (!rows.length) return { rows: [], columns: [], stats: { rowsProcessed: 0 } };
 
   const baseColumns = Object.keys(rows[0]);
-  const { primary: primaryCol, secondary: secondaryCol, experience: experienceCol } =
-    detectColumns(baseColumns);
+  const {
+    primary: primaryCol,
+    secondary: secondaryCol,
+    experience: experienceCol,
+    grade: gradeCol,
+    daysUnallocated: daysCol,
+  } = detectColumns(baseColumns);
 
   if (!primaryCol || !secondaryCol) {
     const missing = [];
@@ -246,10 +436,20 @@ export function processRows(rows, options) {
   let rowsExcludedByExperience = 0;
   let workingRows = rows;
   if (experienceCol) {
-    workingRows = rows.filter((row) => {
+    workingRows = workingRows.filter((row) => {
       const exp = parseExperience(row[experienceCol]);
       const keep = !Number.isNaN(exp) && exp > MIN_EXPERIENCE;
       if (!keep) rowsExcludedByExperience++;
+      return keep;
+    });
+  }
+
+  // Only keep candidates whose grade is in the allowed list.
+  let rowsExcludedByGrade = 0;
+  if (gradeCol) {
+    workingRows = workingRows.filter((row) => {
+      const keep = ALLOWED_GRADE_SET.has(normalizeGrade(row[gradeCol]));
+      if (!keep) rowsExcludedByGrade++;
       return keep;
     });
   }
@@ -275,40 +475,106 @@ export function processRows(rows, options) {
       if (skill) (core ? mapped++ : unmapped++);
     }
 
+    // Stash raw numerics for scoring (removed before returning rows).
+    out.__exp = experienceCol ? parseExperience(out[experienceCol]) : NaN;
+    out.__days = daysCol ? parseNumber(out[daysCol]) : NaN;
+
     return out;
   });
 
-  // Sort rows alphabetically by the Mapped Core Skill (empty values last).
+  // --- Score: fixed band points (experience + days unallocated) -------------
+  // Higher experience and fewer unallocated days score more. Computed only
+  // when both inputs are available.
+  if (addPriority && experienceCol && daysCol) {
+    for (const r of outRows) {
+      r[OUT_SCORE_COL] = experienceScore(r.__exp) + daysScore(r.__days);
+    }
+  }
+
+  // Group by Mapped Core Skill (alphabetical, empty last), then Score desc.
+  // Spring Boot + Microservices are merged into one Java-Backend group first.
   if (addPriority) {
+    const hasScore = experienceCol && daysCol;
     outRows.sort((a, b) => {
-      const av = String(a[OUT_CORE_COL] ?? "").trim();
-      const bv = String(b[OUT_CORE_COL] ?? "").trim();
-      if (!av && !bv) return 0;
-      if (!av) return 1;
-      if (!bv) return -1;
-      return av.localeCompare(bv);
+      const av = relabelCoreSkill(String(a[OUT_CORE_COL] ?? "").trim());
+      const bv = relabelCoreSkill(String(b[OUT_CORE_COL] ?? "").trim());
+      if (av || bv) {
+        if (!av) return 1;
+        if (!bv) return -1;
+        const cmp = av.localeCompare(bv);
+        if (cmp !== 0) return cmp;
+      }
+      if (hasScore) {
+        const as = Number(a[OUT_SCORE_COL]);
+        const bs = Number(b[OUT_SCORE_COL]);
+        const asv = Number.isNaN(as) ? -Infinity : as;
+        const bsv = Number.isNaN(bs) ? -Infinity : bs;
+        return bsv - asv; // higher score first within a group
+      }
+      return 0;
     });
   }
 
-  // Build column order: keep originals, insert new columns right after Secondary.
-  let columns = [...baseColumns];
-  if (addPriority) {
-    columns = columns.filter((c) => c !== OUT_SKILL_COL && c !== OUT_CORE_COL);
-    const idx = columns.indexOf(secondaryCol) + 1;
-    columns.splice(idx, 0, OUT_SKILL_COL, OUT_CORE_COL);
+  // Drop temporary scoring fields.
+  for (const r of outRows) {
+    delete r.__exp;
+    delete r.__days;
   }
 
+  // --- Remap to the required fixed output template ---------------------------
+  // Source columns are matched from the input by header (specific names first
+  // so e.g. "Emp" doesn't grab "Emp Name"); unmatched ones are left blank.
+  const used = new Set();
+  const srcByOut = new Map();
+  OUTPUT_TEMPLATE.filter((t) => t.keys)
+    .slice()
+    .sort(
+      (a, b) =>
+        Math.max(...b.keys.map((k) => k.length)) -
+        Math.max(...a.keys.map((k) => k.length))
+    )
+    .forEach((t) => {
+      const col = matchTemplateColumn(baseColumns, used, t.keys);
+      if (col) {
+        srcByOut.set(t.out, col);
+        used.add(col);
+      }
+    });
+
+  const columns = OUTPUT_TEMPLATE.map((t) => t.out);
+  const finalRows = outRows.map((row) => {
+    const o = {};
+    const core = relabelCoreSkill(String(row[OUT_CORE_COL] ?? "").trim());
+    for (const t of OUTPUT_TEMPLATE) {
+      if (t.portfolio) {
+        o[t.out] = portfolioForCore(core);
+      } else if (t.computed) {
+        let val = row[t.computed] ?? "";
+        // Spring Boot / Microservices core skills are reported as Java-Backend.
+        if (t.out === "CoreSkill") val = core;
+        o[t.out] = val;
+      } else {
+        const src = srcByOut.get(t.out);
+        o[t.out] = src ? row[src] ?? "" : "";
+      }
+    }
+    return o;
+  });
+
   return {
-    rows: outRows,
+    rows: finalRows,
     columns,
     stats: {
-      rowsProcessed: outRows.length,
+      rowsProcessed: finalRows.length,
       mapped,
       unmapped,
       primaryCol,
       secondaryCol,
       experienceCol,
       rowsExcludedByExperience,
+      gradeCol,
+      rowsExcludedByGrade,
+      daysCol,
     },
   };
 }
