@@ -148,10 +148,10 @@ export default function App() {
               onChange={(e) => setRemoveE0(e.target.checked)}
             />
             <span>
-              <div className="title">Remove E0 competencies</div>
+              <div className="title">Remove beginner-level skills</div>
               <div className="desc">
-                Drops any <code>[ E0 ... ]</code> skill from Primary &amp;
-                Secondary and cleans up semicolons.
+                Removes skills marked as beginner (E0) from a candidate's
+                profile so only meaningful experience is shown.
               </div>
             </span>
           </label>
@@ -162,10 +162,10 @@ export default function App() {
               onChange={(e) => setAddPriority(e.target.checked)}
             />
             <span>
-              <div className="title">Add priority skill columns</div>
+              <div className="title">Identify top skill</div>
               <div className="desc">
-                Adds highest-priority detailed skillset (Primary wins ties) and
-                its mapped core skill.
+                Finds each candidate's strongest skill and maps it to a
+                standard job category (e.g. Java, DevOps, ReactJS).
               </div>
             </span>
           </label>

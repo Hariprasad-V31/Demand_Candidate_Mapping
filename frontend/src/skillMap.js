@@ -10,7 +10,7 @@ export const SKILL_MAP = {
   Python: ["Python [ E1", "Python [ E1", "Python [ E2", "Python [ E2", "Python [ E3", "Python [ E3", "Python [ E4"],
   Angular: ["AngularJS [ E1", "AngularJS [ E1", "Angular 2 [ E1", "Angular 2 [ E2", "Angular4 [ E1", "Angular5 [ E1", "Angular 8 [ E1", "Angular 9 [ E1", "Angular 9 [ E2", "Angular 9 [ E3", "Angular 9 [ E4", "Angular 7 [ E1", "Angular 7 [ E2", "Angular 7 [ E3"],
   DevOps: ["DevOps [ E1", "DevOps [ E1", "DevOps [ E2", "DevOps [ E3", "Terraform [ E0", "Terraform [ E1", "Terraform [ E2", "Cloud DevOps [ E1", "Cloud DevOps [ E2", "Cloud DevOps [ E3"],
-  "Database Engineer (Oracle)": ["ORACLE SQL [ E1", "ORACLE SQL [ E2", "ORACLE SQL [ E3", "Oracle DBA [ E1", "Oracle DBA [ E2", "Oracle DBA [ E3", "Oracle DBA [ E4", "Oracle Database 12C Administration [ E1", "Oracle Database 12C Administration [ E2", "Oracle Database 12C Administration [ E3", "Oracle Database Administration [ E1", "Oracle Database Administration [ E2", "Oracle Database Administration [ E3"],
+  "Database Engineer (Oracle)": ["ORACLE SQL [ E1", "ORACLE SQL [ E2", "ORACLE SQL [ E3", "Oracle DBA [ E1", "Oracle DBA [ E2", "Oracle DBA [ E3", "Oracle DBA [ E4", "Oracle Database 12C Administration [ E1", "Oracle Database 12C Administration [ E2", "Oracle Database 12C Administration [ E3", "Oracle Database Administration [ E1", "Oracle Database Administration [ E2", "Oracle Database Administration [ E3", "Data Guard [ E1", "Data Guard [ E2", "Data Guard [ E3", "Data Guard [ E4"],
   Linux: ["Unix / Linux Basics and Commands [ E1", "Unix / Linux Basics and Commands [ E2", "Unix / Linux Basics and Commands [ E3", "RedHat Linux [ E1", "RedHat Linux [ E2", "RedHat Linux [ E3"],
   "Automation tesing": ["Selenium [ E1", "Selenium [ E2", "Selenium [ E3", "Test Automation [ E1", "Test Automation [ E2", "Test Automation [ E3", "Test Automation [ E4", "TOSCA [ E1", "TOSCA [ E2", "TOSCA [ E3"],
   "Manual Testing": ["Testing Concepts, Process and Methodology [ E1", "Testing Concepts, Process and Methodology [ E2", "Testing Concepts, Process and Methodology [ E3", "Manual Testing Processes and Management [ E1", "Manual Testing Processes and Management [ E2", "Manual Testing Processes and Management [ E3", "Functional Testing [ E1", "Functional Testing [ E2", "Functional Testing [ E3"],
@@ -50,4 +50,9 @@ export const SKILL_MAP = {
   "IBM WMQ": ["IBM Websphere MQ Series [ E1", "IBM Websphere MQ Series [ E2", "IBM Websphere MQ Series [ E3", "IBM Websphere MQ Series [ E4", "Azure Service Bus [ E1", "Azure Service Bus [ E2", "Azure Service Bus [ E3"],
   ITAM: ["CMDB Management [ E1", "CMDB Management [ E2", "CMDB Management [ E3", "MDM [ E1", "MDM [ E2", "MDM [ E3"],
   Intune: ["Microsoft Intune [ E1", "Microsoft Intune [ E2", "Microsoft Intune [ E3"],
+  "Project Manager": ["Project Management [ E2", "Project Management [ E3", "Project Management [ E4", "Project Management [ E5"],
+  "Windows Engineer": ["Windows Servers [ E1", "Windows Servers [ E2", "Windows Servers [ E3", "Windows Servers [ E4"],
+  "Salesforce Commerce Cloud": ["Salesforce Commerce Cloud [ E1", "Salesforce Commerce Cloud [ E2", "Salesforce Commerce Cloud [ E3", "Salesforce Commerce Cloud [ E4"],
+  "SAP MM": ["SAP ERP Materials Management (MM) [ E1", "SAP ERP Materials Management (MM) [ E2", "SAP ERP Materials Management (MM) [ E3", "SAP ERP Materials Management (MM) [ E4"],
+  "SAP FICO": ["SAP ERP Financial Accounting (FI) [ E1", "SAP ERP Financial Accounting (FI) [ E2", "SAP ERP Financial Accounting (FI) [ E3", "SAP ERP Financial Accounting (FI) [ E4", "SAP ERP Controlling (CO) [ E1", "SAP ERP Controlling (CO) [ E2", "SAP ERP Controlling (CO) [ E3", "SAP ERP Controlling (CO) [ E4"],
 };
