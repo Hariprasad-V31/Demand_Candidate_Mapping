@@ -1,0 +1,15 @@
+{
+  "name": "skill-mapper-copilot-extension",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "GitHub Copilot Extension for candidate skill mapping with AI-powered classification",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "xlsx": "^0.18.5"
+  }
+}
