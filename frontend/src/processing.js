@@ -127,8 +127,9 @@ function matchTemplateColumn(columns, used, keys) {
   return null;
 }
 
-// Matches an [ E0 ... ] level block (E00, E01 are not matched due to \b).
-const E0_PATTERN = /\[\s*E0\b[^\]]*\]/;
+// Matches any segment containing an E0 level indicator: "[ E0" or "[E0".
+// Works whether or not there is a closing bracket.
+const E0_PATTERN = /\[\s*E0\b/;
 // Captures the level letter and number inside the first bracket,
 // e.g. "[ E2 2 Yrs ]" -> ["E", "2"], "[ L1 <1 Yrs ]" -> ["L", "1"].
 const LEVEL_PATTERN = /\[\s*([A-Za-z]+)\s*(\d+)/;

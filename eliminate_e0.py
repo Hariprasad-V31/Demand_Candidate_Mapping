@@ -25,7 +25,8 @@ TARGET_COLUMNS = ["Primary", "Secondary"]
 
 # Matches a bracketed level block that is E0 (E00, E01 etc. are NOT matched
 # because of the word boundary after the digit 0).
-E0_PATTERN = re.compile(r"\[\s*E0\b[^\]]*\]")
+# Handles both "[ E0 ... ]" (with closing bracket) and "[ E0 ..." (without).
+E0_PATTERN = re.compile(r"\[\s*E0\b")
 
 
 def clean_competency_cell(value):
