@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Skill Mapping Reference</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: #f8f9fa;
+      color: #212529;
+      padding: 32px 20px 64px;
+    }
+    .container { max-width: 960px; margin: 0 auto; }
+    h1 { font-size: 24px; margin-bottom: 4px; }
+    .subtitle { color: #6c757d; margin-bottom: 20px; font-size: 14px; }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 2px solid #dee2e6;
+      margin-bottom: 20px;
+    }
+    .tab {
+      padding: 10px 20px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      color: #6c757d;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .tab:hover { color: #212529; }
+    .tab.active { color: #212529; border-bottom-color: #495057; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .search-bar {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 20px;
+      outline: none;
+    }
+    .search-bar:focus { border-color: #495057; }
+    .stats { color: #6c757d; font-size: 13px; margin-bottom: 16px; }
+    .category {
+      background: #fff;
+      border: 1px solid #dee2e6;
+      border-radius: 10px;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+    .category-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      cursor: pointer;
+      user-select: none;
+      background: #f1f3f5;
+      border-bottom: 1px solid #dee2e6;
+    }
+    .category-header:hover { background: #e9ecef; }
+    .category-name { font-weight: 600; font-size: 15px; }
+    .category-count {
+      font-size: 12px;
+      color: #6c757d;
+      background: #dee2e6;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+    .category-body { padding: 0; }
+    .category.collapsed .category-body { display: none; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 8px 16px; text-align: left; border-bottom: 1px solid #f1f3f5; }
+    th { color: #6c757d; font-weight: 600; font-size: 12px; text-transform: uppercase; }
+    tr:last-child td { border-bottom: none; }
+    .highlight { background: #fff3cd; }
+    .toggle-all {
+      background: none;
+      border: 1px solid #dee2e6;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      color: #495057;
+    }
+    .toggle-all:hover { background: #e9ecef; }
+    .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; }
+
+    /* Portfolio table */
+    .portfolio-table {
+      background: #fff;
+      border: 1px solid #dee2e6;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .portfolio-table table { font-size: 14px; }
+    .portfolio-table th { background: #f1f3f5; padding: 10px 16px; }
+    .portfolio-table td { padding: 10px 16px; border-bottom: 1px solid #f1f3f5; }
+    .portfolio-table tr:last-child td { border-bottom: none; }
+    .portfolio-tag {
+      display: inline-block;
+      background: #e9ecef;
+      color: #495057;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .portfolio-tag.empty { color: #adb5bd; font-style: italic; background: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Skill Mapping Reference</h1>
+    <p class="subtitle">Complete mapping of detailed skills to core job categories and portfolios</p>
+
+    <div class="tabs">
+      <div class="tab active" data-tab="skills">Skill &rarr; Core Category</div>
+      <div class="tab" data-tab="portfolio">Core Skill &rarr; Portfolio</div>
+    </div>
+
+    <!-- Tab 1: Skill Mappings -->
+    <div class="tab-content active" id="tab-skills">
+      <input class="search-bar" type="text" placeholder="Search skills or categories..." id="search" />
+      <div class="toolbar">
+        <div class="stats" id="stats"></div>
+        <button class="toggle-all" id="toggleAll" onclick="toggleAll()">Collapse All</button>
+      </div>
+      <div id="mappings"></div>
+    </div>
+
+    <!-- Tab 2: Portfolio Mappings -->
+    <div class="tab-content" id="tab-portfolio">
+      <input class="search-bar" type="text" placeholder="Search core skill or portfolio..." id="search-portfolio" />
+      <div class="stats" id="stats-portfolio"></div>
+      <div class="portfolio-table" id="portfolio-table"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { SKILL_MAP, CORE_TO_PORTFOLIO_RAW, CORE_TO_DOMAIN, CORE_TO_SUBDOMAIN } from "./src/skillMap.js";
+
+    const container = document.getElementById("mappings");
+    const searchInput = document.getElementById("search");
+    const statsEl = document.getElementById("stats");
+
+    // --- Tab switching ---
+    document.querySelectorAll(".tab").forEach(tab => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+        document.querySelectorAll(".tab-content").forEach(tc => tc.classList.remove("active"));
+        tab.classList.add("active");
+        document.getElementById("tab-" + tab.dataset.tab).classList.add("active");
+      });
+    });
+
+    // --- Tab 1: Skill Mappings ---
+    function getSkillNames(entries) {
+      const names = new Set();
+      for (const entry of entries) {
+        const name = entry.split("[")[0].trim() || entry;
+        if (name) names.add(name);
+      }
+      return [...names];
+    }
+
+    function render(filter = "") {
+      container.innerHTML = "";
+      let catCount = 0;
+      let skillCount = 0;
+      const lower = filter.toLowerCase();
+
+      for (const [category, entries] of Object.entries(SKILL_MAP)) {
+        const skillNames = getSkillNames(entries);
+        const matchingSkills = lower
+          ? skillNames.filter(s => s.toLowerCase().includes(lower))
+          : skillNames;
+        const categoryMatch = category.toLowerCase().includes(lower);
+
+        if (!categoryMatch && matchingSkills.length === 0) continue;
+
+        const displaySkills = categoryMatch ? skillNames : matchingSkills;
+        catCount++;
+        skillCount += displaySkills.length;
+
+        const domain = CORE_TO_DOMAIN[category] || "";
+        const subDomain = CORE_TO_SUBDOMAIN[category] || "";
+        const domainInfo = domain ? ` <span style="font-size:11px;color:#6c757d;">(${esc(domain)} &rarr; ${esc(subDomain)})</span>` : "";
+
+        const div = document.createElement("div");
+        div.className = "category";
+        div.innerHTML = `
+          <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+            <span class="category-name">${esc(category)}${domainInfo}</span>
+            <span class="category-count">${displaySkills.length} skill${displaySkills.length !== 1 ? "s" : ""}</span>
+          </div>
+          <div class="category-body">
+            <table>
+              <thead><tr><th>Detailed Skill</th></tr></thead>
+              <tbody>
+                ${displaySkills.map(s => {
+                  const cls = lower && s.toLowerCase().includes(lower) ? ' class="highlight"' : "";
+                  return `<tr${cls}><td>${esc(s)}</td></tr>`;
+                }).join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+        container.appendChild(div);
+      }
+
+      statsEl.textContent = filter
+        ? `Showing ${catCount} categories, ${skillCount} skills (filtered)`
+        : `${catCount} categories, ${skillCount} total skills`;
+    }
+
+    function esc(text) {
+      const d = document.createElement("div");
+      d.textContent = text;
+      return d.innerHTML;
+    }
+
+    window.toggleAll = function () {
+      const cats = container.querySelectorAll(".category");
+      const allCollapsed = [...cats].every(c => c.classList.contains("collapsed"));
+      cats.forEach(c => {
+        if (allCollapsed) c.classList.remove("collapsed");
+        else c.classList.add("collapsed");
+      });
+      document.getElementById("toggleAll").textContent = allCollapsed ? "Collapse All" : "Expand All";
+    };
+
+    searchInput.addEventListener("input", () => render(searchInput.value.trim()));
+    render();
+
+    // --- Tab 2: Portfolio / Domain Mappings ---
+    const portfolioContainer = document.getElementById("portfolio-table");
+    const portfolioSearch = document.getElementById("search-portfolio");
+    const portfolioStats = document.getElementById("stats-portfolio");
+
+    function renderPortfolio(filter = "") {
+      const lower = filter.toLowerCase();
+      const entries = Object.keys(SKILL_MAP).map(core => ({
+        core,
+        portfolio: CORE_TO_PORTFOLIO_RAW[core] || "",
+        domain: CORE_TO_DOMAIN[core] || "",
+        subDomain: CORE_TO_SUBDOMAIN[core] || "",
+      })).filter(item => {
+        if (!lower) return true;
+        return item.core.toLowerCase().includes(lower) ||
+               item.portfolio.toLowerCase().includes(lower) ||
+               item.domain.toLowerCase().includes(lower) ||
+               item.subDomain.toLowerCase().includes(lower);
+      });
+
+      const rows = entries.map(item => {
+        const pTag = item.portfolio
+          ? `<span class="portfolio-tag">${esc(item.portfolio)}</span>`
+          : `<span class="portfolio-tag empty">-</span>`;
+        const cls = lower ? ' class="highlight"' : "";
+        return `<tr${cls}><td>${esc(item.core)}</td><td>${pTag}</td><td>${esc(item.domain)}</td><td>${esc(item.subDomain)}</td></tr>`;
+      }).join("");
+
+      portfolioContainer.innerHTML = `
+        <table>
+          <thead><tr><th>Core Skill</th><th>Portfolio</th><th>Domain</th><th>Sub-Domain</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+
+      const uniquePortfolios = new Set(entries.map(e => e.portfolio).filter(Boolean));
+      portfolioStats.textContent = filter
+        ? `Showing ${entries.length} mappings (filtered)`
+        : `${entries.length} core skills across ${uniquePortfolios.size} portfolios`;
+    }
+
+    portfolioSearch.addEventListener("input", () => renderPortfolio(portfolioSearch.value.trim()));
+    renderPortfolio();
+  </script>
+</body>
+</html>
