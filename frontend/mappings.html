@@ -115,6 +115,68 @@
       font-weight: 500;
     }
     .portfolio-tag.empty { color: #adb5bd; font-style: italic; background: none; }
+
+    /* Domain tree */
+    .domain-group {
+      background: #fff;
+      border: 1px solid #dee2e6;
+      border-radius: 10px;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+    .domain-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      cursor: pointer;
+      user-select: none;
+      background: #e9ecef;
+      border-bottom: 1px solid #dee2e6;
+      font-weight: 700;
+      font-size: 15px;
+    }
+    .domain-header:hover { background: #dee2e6; }
+    .domain-body { padding: 0; }
+    .domain-group.collapsed .domain-body { display: none; }
+    .subdomain-group { border-top: 1px solid #f1f3f5; }
+    .subdomain-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 16px 10px 32px;
+      cursor: pointer;
+      user-select: none;
+      background: #f1f3f5;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .subdomain-header:hover { background: #e9ecef; }
+    .subdomain-body { padding: 0; }
+    .subdomain-group.collapsed .subdomain-body { display: none; }
+    .skill-list {
+      padding: 6px 16px 6px 52px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .skill-chip {
+      display: inline-block;
+      background: #fff;
+      border: 1px solid #dee2e6;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 13px;
+      color: #495057;
+    }
+    .badge {
+      font-size: 11px;
+      background: #dee2e6;
+      color: #495057;
+      padding: 2px 7px;
+      border-radius: 10px;
+      font-weight: 500;
+    }
   </style>
 </head>
 <body>
@@ -125,6 +187,7 @@
     <div class="tabs">
       <div class="tab active" data-tab="skills">Skill &rarr; Core Category</div>
       <div class="tab" data-tab="portfolio">Core Skill &rarr; Portfolio</div>
+      <div class="tab" data-tab="domains">Domain Hierarchy</div>
     </div>
 
     <!-- Tab 1: Skill Mappings -->
@@ -142,6 +205,13 @@
       <input class="search-bar" type="text" placeholder="Search core skill or portfolio..." id="search-portfolio" />
       <div class="stats" id="stats-portfolio"></div>
       <div class="portfolio-table" id="portfolio-table"></div>
+    </div>
+
+    <!-- Tab 3: Domain Hierarchy -->
+    <div class="tab-content" id="tab-domains">
+      <input class="search-bar" type="text" placeholder="Search domain, sub-domain, or core skill..." id="search-domains" />
+      <div class="stats" id="stats-domains"></div>
+      <div id="domain-tree"></div>
     </div>
   </div>
 
@@ -284,6 +354,91 @@
 
     portfolioSearch.addEventListener("input", () => renderPortfolio(portfolioSearch.value.trim()));
     renderPortfolio();
+
+    // --- Tab 3: Domain Hierarchy ---
+    const domainTree = document.getElementById("domain-tree");
+    const domainSearch = document.getElementById("search-domains");
+    const domainStats = document.getElementById("stats-domains");
+
+    function buildDomainTree() {
+      // domain -> subdomain -> [core skills]
+      const tree = {};
+      for (const core of Object.keys(SKILL_MAP)) {
+        const domain = CORE_TO_DOMAIN[core] || "(No Domain)";
+        const subDomain = CORE_TO_SUBDOMAIN[core] || "(No Sub-Domain)";
+        if (!tree[domain]) tree[domain] = {};
+        if (!tree[domain][subDomain]) tree[domain][subDomain] = [];
+        tree[domain][subDomain].push(core);
+      }
+      return tree;
+    }
+
+    function renderDomains(filter = "") {
+      const tree = buildDomainTree();
+      const lower = filter.toLowerCase();
+      domainTree.innerHTML = "";
+      let domainCount = 0;
+      let subCount = 0;
+      let skillCount = 0;
+
+      for (const [domain, subDomains] of Object.entries(tree)) {
+        // Check if any content in this domain matches the filter
+        let domainMatch = domain.toLowerCase().includes(lower);
+        const matchingSubs = {};
+
+        for (const [sub, skills] of Object.entries(subDomains)) {
+          const subMatch = sub.toLowerCase().includes(lower);
+          const matchingSkills = lower
+            ? skills.filter(s => s.toLowerCase().includes(lower))
+            : skills;
+
+          if (domainMatch || subMatch || matchingSkills.length > 0) {
+            matchingSubs[sub] = domainMatch || subMatch ? skills : matchingSkills;
+          }
+        }
+
+        if (Object.keys(matchingSubs).length === 0) continue;
+        domainCount++;
+
+        const domainDiv = document.createElement("div");
+        domainDiv.className = "domain-group";
+
+        let subHTML = "";
+        for (const [sub, skills] of Object.entries(matchingSubs)) {
+          subCount++;
+          skillCount += skills.length;
+          const chips = skills.map(s => `<span class="skill-chip">${esc(s)}</span>`).join("");
+          subHTML += `
+            <div class="subdomain-group">
+              <div class="subdomain-header" onclick="this.parentElement.classList.toggle('collapsed')">
+                <span>${esc(sub)}</span>
+                <span class="badge">${skills.length} skills</span>
+              </div>
+              <div class="subdomain-body">
+                <div class="skill-list">${chips}</div>
+              </div>
+            </div>
+          `;
+        }
+
+        const totalSkillsInDomain = Object.values(matchingSubs).reduce((a, b) => a + b.length, 0);
+        domainDiv.innerHTML = `
+          <div class="domain-header" onclick="this.parentElement.classList.toggle('collapsed')">
+            <span>${esc(domain)}</span>
+            <span class="badge">${Object.keys(matchingSubs).length} sub-domains &middot; ${totalSkillsInDomain} skills</span>
+          </div>
+          <div class="domain-body">${subHTML}</div>
+        `;
+        domainTree.appendChild(domainDiv);
+      }
+
+      domainStats.textContent = filter
+        ? `Showing ${domainCount} domains, ${subCount} sub-domains, ${skillCount} core skills (filtered)`
+        : `${domainCount} domains, ${subCount} sub-domains, ${skillCount} core skills`;
+    }
+
+    domainSearch.addEventListener("input", () => renderDomains(domainSearch.value.trim()));
+    renderDomains();
   </script>
 </body>
 </html>
