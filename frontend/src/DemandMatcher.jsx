@@ -110,6 +110,11 @@ export default function DemandMatcher() {
   const [demandDragging, setDemandDragging] = useState(false);
   const demandRef = useRef(null);
 
+  // GitHub token for AI
+  const [ghToken, setGhToken] = useState("");
+  const [processing, setProcessing] = useState(false);
+  const [progress, setProgress] = useState("");
+
   // Results
   const [matchResult, setMatchResult] = useState(null);
   const [error, setError] = useState("");
@@ -136,12 +141,21 @@ export default function DemandMatcher() {
     reader.readAsArrayBuffer(file);
   }, []);
 
-  const processAndMatch = () => {
+  const processAndMatch = async () => {
     setError("");
     setMatchResult(null);
+    setProcessing(true);
+    setProgress("Processing candidates...");
 
     if (!candRows || !demandRows) {
       setError("Please upload both Candidates and Demand files.");
+      setProcessing(false);
+      return;
+    }
+
+    if (!ghToken.trim()) {
+      setError("Please enter your GitHub token for AI-powered demand classification.");
+      setProcessing(false);
       return;
     }
 
@@ -152,50 +166,140 @@ export default function DemandMatcher() {
         addPriority: true,
       });
 
-      // Step 2: Extract demand core skills
+      // Step 2: Extract demand skills and classify using AI
+      setProgress("Classifying demand skills with AI...");
       const demandCols = Object.keys(demandRows[0]);
       const { coreCol, detailCol, fallbackCol } =
         detectDemandSkillColumns(demandCols);
 
-      const demandCoreSkills = new Set();
-      const demandDetails = []; // For reporting
-
+      // Collect unique demand skill texts
+      const demandSkillTexts = new Set();
       for (const row of demandRows) {
-        let resolved = "";
+        const text =
+          (coreCol && row[coreCol] ? String(row[coreCol]).trim() : "") ||
+          (detailCol && row[detailCol] ? String(row[detailCol]).trim() : "") ||
+          (fallbackCol && row[fallbackCol] ? String(row[fallbackCol]).trim() : "");
+        if (text) demandSkillTexts.add(text);
+      }
 
-        // Try core skill column first
-        if (coreCol && row[coreCol]) {
-          resolved = resolveDemandToCore(String(row[coreCol]).trim());
+      if (demandSkillTexts.size === 0) {
+        setError(
+          "Could not identify any skill columns in the Demand file. " +
+            "Make sure it has a column like 'Core Skill Group', 'Detail Skill', or 'Skill'."
+        );
+        setProcessing(false);
+        return;
+      }
+
+      // Resolve each demand skill: first try hardcoded map, then AI fallback
+      const demandCoreSkills = new Set();
+      const unresolvedSkills = [];
+      const resolutionLog = []; // Track what got resolved how
+
+      for (const text of demandSkillTexts) {
+        const local = resolveDemandToCore(text);
+        if (local) {
+          demandCoreSkills.add(local);
+          resolutionLog.push({ raw: text, resolved: local, method: "map" });
+        } else {
+          unresolvedSkills.push(text);
         }
+      }
 
-        // If not resolved, try detail skill column
-        if (!resolved && detailCol && row[detailCol]) {
-          resolved = resolveDemandToCore(String(row[detailCol]).trim());
-        }
+      // AI classification for unresolved skills (batch in groups of 10)
+      if (unresolvedSkills.length > 0) {
+        setProgress(`Classifying ${unresolvedSkills.length} unresolved demand skills with AI...`);
+        const coreSkillList = Object.keys(SKILL_MAP).join(", ");
+        const batchSize = 10;
 
-        // Fallback to generic skill column
-        if (!resolved && fallbackCol && row[fallbackCol]) {
-          resolved = resolveDemandToCore(String(row[fallbackCol]).trim());
-        }
+        for (let i = 0; i < unresolvedSkills.length; i += batchSize) {
+          const batch = unresolvedSkills.slice(i, i + batchSize);
+          setProgress(
+            `AI classifying batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(unresolvedSkills.length / batchSize)}...`
+          );
 
-        if (resolved) {
-          demandCoreSkills.add(resolved);
-          demandDetails.push({
-            raw: row[coreCol || detailCol || fallbackCol] || "",
-            resolved,
-          });
+          try {
+            const prompt = `You are a skill classification assistant. Given these demand skill descriptions, map each one to the CLOSEST matching core skill from this list:
+
+${coreSkillList}
+
+Demand skills to classify:
+${batch.map((s, idx) => `${idx + 1}. "${s}"`).join("\n")}
+
+Respond ONLY with a JSON array of objects like: [{"input": "...", "core_skill": "..."}]
+If no match exists, use "core_skill": "". No explanation needed.`;
+
+            const response = await fetch(
+              "https://models.inference.ai.azure.com/chat/completions",
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${ghToken.trim()}`,
+                },
+                body: JSON.stringify({
+                  model: "gpt-4o-mini",
+                  messages: [{ role: "user", content: prompt }],
+                  temperature: 0.1,
+                }),
+              }
+            );
+
+            if (!response.ok) {
+              const errText = await response.text();
+              console.warn("AI API error:", response.status, errText);
+              // Continue without AI for this batch
+              for (const s of batch) {
+                resolutionLog.push({ raw: s, resolved: "", method: "unresolved" });
+              }
+              continue;
+            }
+
+            const data = await response.json();
+            const content = data.choices?.[0]?.message?.content || "";
+
+            // Parse JSON from response (handle markdown code blocks)
+            const jsonMatch = content.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+              const results = JSON.parse(jsonMatch[0]);
+              for (const item of results) {
+                const coreSkill = item.core_skill?.trim() || "";
+                if (coreSkill && SKILL_MAP[coreSkill]) {
+                  demandCoreSkills.add(coreSkill);
+                  resolutionLog.push({
+                    raw: item.input,
+                    resolved: coreSkill,
+                    method: "ai",
+                  });
+                } else {
+                  resolutionLog.push({
+                    raw: item.input,
+                    resolved: coreSkill || "",
+                    method: coreSkill ? "ai-unverified" : "unresolved",
+                  });
+                }
+              }
+            }
+          } catch (aiErr) {
+            console.warn("AI batch error:", aiErr);
+            for (const s of batch) {
+              resolutionLog.push({ raw: s, resolved: "", method: "error" });
+            }
+          }
         }
       }
 
       if (demandCoreSkills.size === 0) {
         setError(
-          "Could not identify any core skills from the Demand file. " +
-            "Make sure it has a column like 'Core Skill Group', 'Detail Skill', or 'Skill'."
+          "Could not map any demand entries to core skills. " +
+            "The demand file skills may not align with known categories."
         );
+        setProcessing(false);
         return;
       }
 
       // Step 3: Filter candidates - keep only those whose mapped core skill matches a demand
+      setProgress("Matching candidates to demands...");
       const coreSkillCol = "CoreSkill";
       const matchedRows = processed.rows.filter((row) => {
         const candidateCore = String(row[coreSkillCol] || "").trim();
@@ -214,10 +318,17 @@ export default function DemandMatcher() {
           matched: matchedRows.length,
           unmatched: unmatchedCount,
           demandSkills: [...demandCoreSkills].sort(),
+          resolutionLog,
+          aiClassified: resolutionLog.filter((r) => r.method === "ai").length,
+          mapClassified: resolutionLog.filter((r) => r.method === "map").length,
+          unresolvedCount: resolutionLog.filter((r) => r.method === "unresolved" || r.method === "error").length,
         },
       });
     } catch (err) {
       setError(`Processing error: ${err.message}`);
+    } finally {
+      setProcessing(false);
+      setProgress("");
     }
   };
 
@@ -331,13 +442,28 @@ export default function DemandMatcher() {
           </div>
         </div>
 
+        {/* GitHub token for AI */}
+        <div className="token-section">
+          <label className="upload-label">🔑 GitHub Token (for AI demand classification)</label>
+          <input
+            type="password"
+            className="token-input"
+            placeholder="ghp_... or github_pat_..."
+            value={ghToken}
+            onChange={(e) => setGhToken(e.target.value)}
+          />
+          <div className="token-hint">
+            Used to call GitHub Models API for classifying demand skills that don't match the hardcoded map.
+          </div>
+        </div>
+
         <div className="actions" style={{ marginTop: 18 }}>
           <button
             className="btn-primary"
             onClick={processAndMatch}
-            disabled={!candRows || !demandRows}
+            disabled={!candRows || !demandRows || processing}
           >
-            Match Candidates to Demand
+            {processing ? "Processing..." : "Match Candidates to Demand"}
           </button>
           <button
             className="btn-secondary"
@@ -348,6 +474,7 @@ export default function DemandMatcher() {
           </button>
         </div>
 
+        {progress && <div className="progress-bar">{progress}</div>}
         {error && <div className="error">{error}</div>}
       </div>
 
@@ -375,6 +502,15 @@ export default function DemandMatcher() {
               </div>
               <div className="label">No demand match</div>
             </div>
+          </div>
+
+          {/* Classification breakdown */}
+          <div className="classification-info">
+            <span className="class-tag map">📋 {matchResult.stats.mapClassified} mapped locally</span>
+            <span className="class-tag ai">🤖 {matchResult.stats.aiClassified} classified by AI</span>
+            {matchResult.stats.unresolvedCount > 0 && (
+              <span className="class-tag unresolved">⚠️ {matchResult.stats.unresolvedCount} unresolved</span>
+            )}
           </div>
 
           {/* Demand skills detected */}

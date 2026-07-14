@@ -102,6 +102,56 @@ body {
   font-weight: 500;
 }
 
+/* Token input */
+.token-section {
+  margin-top: 16px;
+}
+.token-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: monospace;
+  outline: none;
+  background: var(--panel);
+  color: var(--text);
+}
+.token-input:focus { border-color: var(--accent); }
+.token-hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* Progress */
+.progress-bar {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: #e8f4fd;
+  border: 1px solid #b6d9f2;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #1a5276;
+}
+
+/* Classification tags */
+.classification-info {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.class-tag {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: 500;
+}
+.class-tag.map { background: #d4edda; color: #155724; }
+.class-tag.ai { background: #e8daef; color: #4a235a; }
+.class-tag.unresolved { background: #fff3cd; color: #856404; }
+
 .file-info {
   display: flex;
   align-items: center;
