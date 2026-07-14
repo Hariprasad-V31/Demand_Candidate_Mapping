@@ -1,5 +1,5 @@
 // Browser port of eliminate_e0.py + add_priority_skill.py
-import { SKILL_MAP } from "./skillMap.js";
+import { SKILL_MAP, CORE_TO_DOMAIN } from "./skillMap.js";
 
 export const PRIMARY_COL = "Primary";
 export const SECONDARY_COL = "Secondary";
@@ -27,72 +27,14 @@ export const OUTPUT_TEMPLATE = [
   { out: "Exp", keys: ["expbucket", "experience", "exp"] },
   { out: "CoreSkill", computed: OUT_CORE_COL },
   { out: "Detail Skill Set", computed: OUT_SKILL_COL },
-  { out: "Portfolio", portfolio: true },
+  { out: "Domain", domain: true },
   { out: "Ranking/Score", computed: OUT_SCORE_COL },
 ];
 
-// Core skill -> Portfolio mapping. Keys are matched against the (relabeled)
-// CoreSkill value, normalized to lowercase alphanumerics. Empty string => blank.
-const CORE_TO_PORTFOLIO_RAW = {
-  Java: "EBP",
-  ReactJS: "",
-  Databricks: "Data / EBP",
-  "Data Engineering": "Data / EBP",
-  Angular: "EBP",
-  Linux: "Infra",
-  "Automation Testing": "Channels",
-  "Manual Testing": "",
-  "SAP ABAP": "EBP (SAP)",
-  "SAP Basis": "EBP (SAP)",
-  "RPA UI path": "Infra",
-  STIBO: "",
-  VMWare: "Infra",
-  "Network engineer": "",
-  Mulesoft: "EBP",
-  PLM: "EBP",
-  PeopleSoft: "",
-  "Product Manager": "EBP",
-  "Program Manager": "Channels / Infra / Programme",
-  "Solution Architect": "Data / Infra / Channels",
-  "Business Analyst": "Data / Channels",
-  Cybersecurity: "",
-  "Oracle HCM": "EBP (HR)",
-  "Power BI": "Data",
-  MiddleWare: "Infra",
-  "Performance Testing": "",
-  Mainframe: "",
-  DevOps: "",
-  "Database Engineer": "Infra",
-  Apigee: "",
-  "SQL Developer": "Channels",
-  "SCCM Engineer": "Infra",
-  "Data Modeller": "Data",
-  "Incident Manager": "Data / EBP",
-  "Change Management": "",
-  "Data stage": "EBP",
-  "SharePoint Admin": "Infra",
-  "O365 Support": "Infra",
-  "VMO Lead": "Infra",
-  "Software Asset Manager": "Infra",
-  "Sterling OMS": "Channels",
-  "PL/SQL": "EBP",
-  Python: "",
-  "SAP S4 HANA Finance": "EBP (SAP)",
-  "IBM WMQ": "EBP / Infra",
-  "Java backend": "EBP / Channels",
-  "Java-Backend": "EBP / Channels",
-};
-const CORE_TO_PORTFOLIO = new Map(
-  Object.entries(CORE_TO_PORTFOLIO_RAW).map(([k, v]) => [
-    k.toLowerCase().replace(/[^a-z0-9]/g, ""),
-    v,
-  ])
-);
-
-// Resolve the Portfolio value for a (relabeled) core skill.
-function portfolioForCore(core) {
-  const key = String(core ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
-  return CORE_TO_PORTFOLIO.get(key) ?? "";
+// Resolve the Domain value for a core skill using demand data mapping.
+function domainForCore(core) {
+  if (!core) return "";
+  return CORE_TO_DOMAIN[core] || "";
 }
 
 // Normalize a header to lowercase alphanumerics for template matching.
@@ -547,8 +489,8 @@ export function processRows(rows, options) {
     const o = {};
     const core = relabelCoreSkill(String(row[OUT_CORE_COL] ?? "").trim());
     for (const t of OUTPUT_TEMPLATE) {
-      if (t.portfolio) {
-        o[t.out] = portfolioForCore(core);
+      if (t.domain) {
+        o[t.out] = domainForCore(core);
       } else if (t.computed) {
         let val = row[t.computed] ?? "";
         // Spring Boot / Microservices core skills are reported as Java-Backend.
