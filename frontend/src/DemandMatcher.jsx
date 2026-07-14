@@ -74,6 +74,7 @@ function detectDemandSkillColumns(columns) {
     (c) =>
       c.norm.includes("core skill") ||
       c.norm.includes("coreskill") ||
+      c.norm.includes("core skill group") ||
       c.norm === "core"
   );
   const detailCol = normed.find(
@@ -82,6 +83,7 @@ function detectDemandSkillColumns(columns) {
       c.norm.includes("detailskill") ||
       c.norm.includes("detailed skill")
   );
+  const roleCol = normed.find((c) => c.norm === "role");
   const genericSkill = normed.find(
     (c) =>
       c.norm.includes("skill") &&
@@ -93,7 +95,7 @@ function detectDemandSkillColumns(columns) {
   return {
     coreCol: coreCol?.orig || null,
     detailCol: detailCol?.orig || null,
-    fallbackCol: genericSkill?.orig || competency?.orig || null,
+    fallbackCol: genericSkill?.orig || roleCol?.orig || competency?.orig || null,
   };
 }
 
@@ -173,6 +175,9 @@ export default function DemandMatcher() {
       const { coreCol, detailCol, fallbackCol } =
         detectDemandSkillColumns(demandCols);
 
+      console.log("Demand columns detected:", { coreCol, detailCol, fallbackCol });
+      console.log("All columns:", demandCols);
+
       // Collect unique demand skill texts
       const demandSkillTexts = new Set();
       for (const row of demandRows) {
@@ -184,9 +189,11 @@ export default function DemandMatcher() {
       }
 
       if (demandSkillTexts.size === 0) {
+        const detected = [coreCol, detailCol, fallbackCol].filter(Boolean);
         setError(
-          "Could not identify any skill columns in the Demand file. " +
-            "Make sure it has a column like 'Core Skill Group', 'Detail Skill', or 'Skill'."
+          detected.length > 0
+            ? `Found columns [${detected.join(", ")}] but all rows are empty in those columns. Check if your file has data.`
+            : `Could not find skill columns. Detected headers: ${demandCols.slice(0, 10).join(", ")}. Expected: 'Core Skill Group', 'Detail Skill', or 'Role'.`
         );
         setProcessing(false);
         return;
