@@ -55,6 +55,11 @@ body {
   transition: border-color 0.15s, background 0.15s;
 }
 
+.dropzone.mini {
+  padding: 20px 16px;
+  font-size: 14px;
+}
+
 .dropzone:hover,
 .dropzone.dragging {
   border-color: var(--accent);
@@ -63,6 +68,38 @@ body {
 
 .dropzone strong {
   color: var(--accent);
+}
+
+/* Upload pair layout */
+.upload-pair {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.upload-slot {
+  flex: 1 1 280px;
+}
+.upload-label {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+/* Demand chips */
+.demand-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.demand-chip {
+  display: inline-block;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 500;
 }
 
 .file-info {

@@ -4,6 +4,7 @@ import {
   processRows,
 } from "./processing.js";
 import MappingsView from "./MappingsView.jsx";
+import DemandMatcher from "./DemandMatcher.jsx";
 
 export default function App() {
   const [page, setPage] = useState("mapper");
@@ -108,6 +109,12 @@ export default function App() {
           Skill Mapper
         </div>
         <div
+          className={`page-tab ${page === "matcher" ? "active" : ""}`}
+          onClick={() => setPage("matcher")}
+        >
+          Demand Matcher
+        </div>
+        <div
           className={`page-tab ${page === "reference" ? "active" : ""}`}
           onClick={() => setPage("reference")}
         >
@@ -117,6 +124,8 @@ export default function App() {
 
       {page === "reference" ? (
         <MappingsView />
+      ) : page === "matcher" ? (
+        <DemandMatcher />
       ) : (
       <>
       <div className="header">
