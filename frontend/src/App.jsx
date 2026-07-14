@@ -3,8 +3,10 @@ import * as XLSX from "xlsx";
 import {
   processRows,
 } from "./processing.js";
+import MappingsView from "./MappingsView.jsx";
 
 export default function App() {
+  const [page, setPage] = useState("mapper");
   const [fileName, setFileName] = useState("");
   const [rawRows, setRawRows] = useState(null);
   const [result, setResult] = useState(null);
@@ -97,6 +99,26 @@ export default function App() {
 
   return (
     <div className="app">
+      {/* Top-level page tabs */}
+      <div className="page-tabs">
+        <div
+          className={`page-tab ${page === "mapper" ? "active" : ""}`}
+          onClick={() => setPage("mapper")}
+        >
+          Skill Mapper
+        </div>
+        <div
+          className={`page-tab ${page === "reference" ? "active" : ""}`}
+          onClick={() => setPage("reference")}
+        >
+          Skill Mapping Reference
+        </div>
+      </div>
+
+      {page === "reference" ? (
+        <MappingsView />
+      ) : (
+      <>
       <div className="header">
         <h1>Skill Mapper</h1>
         <p>
@@ -260,6 +282,8 @@ export default function App() {
             </table>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );
