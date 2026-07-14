@@ -123,6 +123,12 @@ body {
   color: var(--muted);
   margin-top: 4px;
 }
+.token-configured {
+  font-size: 14px;
+  color: var(--green);
+  font-weight: 500;
+  padding: 8px 0;
+}
 
 /* Progress */
 .progress-bar {

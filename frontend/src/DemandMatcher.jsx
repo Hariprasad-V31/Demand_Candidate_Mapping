@@ -110,8 +110,9 @@ export default function DemandMatcher() {
   const [demandDragging, setDemandDragging] = useState(false);
   const demandRef = useRef(null);
 
-  // GitHub token for AI
-  const [ghToken, setGhToken] = useState("");
+  // GitHub token for AI - use build-time env var if available, else manual input
+  const [ghToken, setGhToken] = useState(import.meta.env.VITE_GH_TOKEN || "");
+  const hasEnvToken = Boolean(import.meta.env.VITE_GH_TOKEN);
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState("");
 
@@ -443,19 +444,26 @@ If no match exists, use "core_skill": "". No explanation needed.`;
         </div>
 
         {/* GitHub token for AI */}
-        <div className="token-section">
-          <label className="upload-label">🔑 GitHub Token (for AI demand classification)</label>
-          <input
-            type="password"
-            className="token-input"
-            placeholder="ghp_... or github_pat_..."
-            value={ghToken}
-            onChange={(e) => setGhToken(e.target.value)}
-          />
-          <div className="token-hint">
-            Used to call GitHub Models API for classifying demand skills that don't match the hardcoded map.
+        {!hasEnvToken && (
+          <div className="token-section">
+            <label className="upload-label">🔑 GitHub Token (for AI demand classification)</label>
+            <input
+              type="password"
+              className="token-input"
+              placeholder="ghp_... or github_pat_..."
+              value={ghToken}
+              onChange={(e) => setGhToken(e.target.value)}
+            />
+            <div className="token-hint">
+              Used to call GitHub Models API for classifying demand skills that don't match the hardcoded map.
+            </div>
           </div>
-        </div>
+        )}
+        {hasEnvToken && (
+          <div className="token-section">
+            <div className="token-configured">✓ AI classification is pre-configured</div>
+          </div>
+        )}
 
         <div className="actions" style={{ marginTop: 18 }}>
           <button
