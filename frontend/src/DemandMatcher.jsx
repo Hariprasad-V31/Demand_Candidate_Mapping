@@ -125,7 +125,8 @@ Rules:
 - You MUST pick from the list above. Do not invent new categories.
 - If none of the categories match, return empty string for core_skill.
 - Match based on the technology/skill, not the role title.
-- "Java Developer" → "Java", "React Lead" → "ReactJS", ".NET Engineer" → pick closest or empty.`;
+- "Java Developer" → "Java", "React Lead" → "ReactJS", ".NET Engineer" → pick closest or empty.
+- Also assign a domain from: Technology, Digital, BFSI, Healthcare, Retail, Manufacturing, Telecom, Energy, Media, Infrastructure, Analytics, ERP, Security, Cloud, Management, Platform Domain, Data & AI Domain, Food and International Food, FH&B and International FH&B.`;
 
   const batchSize = 30;
   const results = [];
@@ -136,10 +137,10 @@ Rules:
       onProgress(`AI classifying demand skills: ${i + batch.length}/${demandEntries.length}`);
     }
 
-    const userPrompt = `Classify these demand/requirement entries into core skill categories:
+    const userPrompt = `Classify these demand/requirement entries into core skill categories and assign a domain:
 ${batch.map((entry, idx) => `${idx + 1}. ${JSON.stringify(entry)}`).join("\n")}
 
-Respond ONLY with a JSON array: [{"index": 1, "core_skill": "...", "confidence": "high|medium|low"}]`;
+Respond ONLY with a JSON array: [{"index": 1, "core_skill": "...", "domain": "...", "confidence": "high|medium|low"}]`;
 
     try {
       const content = await callAI(token, systemPrompt, userPrompt);
@@ -153,7 +154,7 @@ Respond ONLY with a JSON array: [{"index": 1, "core_skill": "...", "confidence":
               original: batch[idx],
               coreSkill: (item.core_skill || "").trim(),
               confidence: item.confidence || "medium",
-              domain: batch[idx].domain || "",
+              domain: (item.domain || batch[idx].domain || "").trim(),
             });
           }
         }
