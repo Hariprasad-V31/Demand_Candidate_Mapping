@@ -154,7 +154,7 @@ Respond ONLY with a JSON array: [{"index": 1, "core_skill": "...", "domain": "..
               original: batch[idx],
               coreSkill: (item.core_skill || "").trim(),
               confidence: item.confidence || "medium",
-              domain: (item.domain || batch[idx].domain || "").trim(),
+              domain: batch[idx].domain || (item.domain || "").trim(),
             });
           }
         }
@@ -328,15 +328,20 @@ export default function DemandMatcher() {
       // Domain column: AI detection + manual fallback
       let domainCol = demandColMap?.domain;
       if (!domainCol) {
-        // Fallback: search for domain-like column names manually
         const domainFallback = demandColNames.find((c) => {
           const cl = c.toLowerCase();
-          return cl.includes("domain") || cl.includes("sub domain") || cl.includes("subdomain") ||
-                 cl.includes("business unit") || cl.includes("vertical") || cl.includes("bu ");
+          return cl === "domain" || cl === "sub domain" || cl === "subdomain" ||
+                 cl.includes("project du") || cl.includes("business unit") ||
+                 cl.includes("vertical") || (cl.includes(" du") && !cl.includes("sub"));
         });
         if (domainFallback) domainCol = domainFallback;
       }
-      console.log("Domain column detected:", domainCol);
+      // Also detect sub-domain column
+      let subDomainCol = demandColNames.find((c) => {
+        const cl = c.toLowerCase();
+        return cl.includes("sub du") || cl.includes("sub domain") || cl.includes("subdomain") || cl === "sub sp";
+      });
+      console.log("Domain column detected:", domainCol, "| Sub-domain column:", subDomainCol);
 
       const demandEntries = [];
       const seenDemandTexts = new Set();
@@ -345,7 +350,10 @@ export default function DemandMatcher() {
         const core = coreSkillCol ? String(row[coreSkillCol] || "").trim() : "";
         const detail = detailSkillCol ? String(row[detailSkillCol] || "").trim() : "";
         const role = roleCol ? String(row[roleCol] || "").trim() : "";
-        const domain = domainCol ? String(row[domainCol] || "").trim() : "";
+        const domainVal = domainCol ? String(row[domainCol] || "").trim() : "";
+        const subDomainVal = subDomainCol ? String(row[subDomainCol] || "").trim() : "";
+        // Combine domain + sub-domain
+        const domain = [domainVal, subDomainVal].filter(Boolean).join("/") || "";
 
         // Fallback: grab text from any skill-like column
         let fallbackText = "";
