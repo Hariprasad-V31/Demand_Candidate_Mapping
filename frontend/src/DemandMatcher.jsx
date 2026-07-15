@@ -231,7 +231,16 @@ export default function DemandMatcher() {
           }
         }
 
-        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" });
+        const rawRows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
+        // Remove rows that are entirely empty and strip __EMPTY columns
+        const rows = rawRows.map(row => {
+          const cleaned = {};
+          for (const [k, v] of Object.entries(row)) {
+            if (k.startsWith("__EMPTY")) continue;
+            if (v !== "" && v !== null && v !== undefined) cleaned[k] = v;
+          }
+          return cleaned;
+        }).filter(row => Object.keys(row).length > 0);
         if (!rows.length) {
           setError("The file appears to be empty.");
           return;
