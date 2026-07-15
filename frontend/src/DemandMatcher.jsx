@@ -254,16 +254,28 @@ export default function DemandMatcher() {
             const batch = skillList.slice(i, i + batchSize);
             setProgress(`🤖 AI classifying unmapped skills: ${Math.min(i + batchSize, skillList.length)}/${skillList.length}`);
 
-            const userPrompt = `Classify these IT skill descriptions. For each, provide the core skill category AND the business domain it belongs to:
+            const userPrompt = `Normalize these IT skill names to their shortest standard form. Do NOT reclassify into different skills/roles:
 ${batch.map((s, idx) => `${idx + 1}. "${s}"`).join("\n")}
 
 Respond ONLY with a JSON array: [{"index": 1, "core_skill": "...", "domain": "..."}]
-Core skills: Java, .NET, Python, React, Angular, DevOps, AWS, Azure, Data Engineering, Testing, Business Analysis, Project Management, SAP, Salesforce, Cybersecurity, Scrum Master, etc.
+Examples: "Core Java"→"Java", "ReactJS"→"React", "Amazon Web Service(AWS) Cloud Computing"→"AWS", "Agile Way of Working"→"Agile" (NOT Scrum Master!)
 Domains: Technology, Digital, BFSI, Healthcare, Retail, Manufacturing, Telecom, Energy, Media, Infrastructure, Analytics, ERP, Security, Cloud, Management, etc.`;
 
             try {
               const content = await callAI(token,
-                "You are an IT skill classification expert. Classify each skill into a standardized core skill category.",
+                `You are an IT skill name normalizer. Your job is to SHORTEN and STANDARDIZE skill names, NOT to reclassify them into different skills or roles.
+
+RULES:
+- Only normalize the name to a shorter, standard form
+- "Core Java" → "Java" ✓ (same skill, shorter name)
+- "Amazon Web Service(AWS) Cloud Computing" → "AWS" ✓ (same skill, shorter name)
+- "ReactJS" → "React" ✓ (same skill, shorter name)
+- "Core .NET Technologies" → ".NET" ✓ (same skill, shorter name)
+- "Agile Way of Working" → "Agile" ✓ (NOT "Scrum Master" — that's a different role!)
+- "Manual Testing Processes and Management" → "Manual Testing" ✓ (NOT "Automation Testing")
+- "Communication" → "Communication" ✓ (keep as-is, don't reclassify)
+- DO NOT generalize a skill into a broader role/category it doesn't directly represent
+- If unsure, keep the original name shortened but don't change its meaning`,
                 userPrompt);
               const parsed = parseAIJson(content);
               if (Array.isArray(parsed)) {
