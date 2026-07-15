@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
+import { processRows } from "./processing.js";
 
 const AI_ENDPOINT = "https://models.inference.ai.azure.com/chat/completions";
 const AI_MODEL = "gpt-4o-mini";
@@ -91,53 +92,6 @@ Example: {"core_skill": "Core Skill Group", "detail_skill": "Detail Skill", "rol
 }
 
 /**
- * AI-powered: Classify candidate skills into core skill categories.
- * Processes a batch of skill texts and returns their core skill mappings.
- */
-async function aiClassifyCandidateSkills(token, skillTexts, onProgress) {
-  const systemPrompt = `You are an IT skill classification expert. Given raw skill descriptions from employee profiles, classify each into a standardized core skill category.
-
-Common core skills include (but are not limited to):
-Java, .NET, Python, React, Angular, SAP, Salesforce, Cloud DevOps, Data Engineering, Testing/QA, Project Management, Business Analysis, Scrum Master, DevOps, AWS, Azure, SQL, Oracle, ServiceNow, Pega, Machine Learning, Data Science, Cybersecurity, Network Engineering, iOS, Android, Flutter, Mainframe, Embedded Systems, UI/UX Design, Power BI, Tableau, Hadoop, Spark, Kubernetes, Docker, Terraform, etc.
-
-Rules:
-- Extract the skill name from bracketed text like "Java [E2 2 Yrs]" → skill is "Java"
-- Classify into the MOST SPECIFIC appropriate core skill category
-- If a skill has a prefix like "Digital : Cloud DevOps", the core skill is "Cloud DevOps"
-- Return the core skill as a concise, standardized category name`;
-
-  const batchSize = 20;
-  const results = new Map();
-
-  for (let i = 0; i < skillTexts.length; i += batchSize) {
-    const batch = skillTexts.slice(i, i + batchSize);
-    if (onProgress) {
-      onProgress(`AI classifying candidate skills: ${i + batch.length}/${skillTexts.length}`);
-    }
-
-    const userPrompt = `Classify these skill descriptions into core skill categories:
-${batch.map((s, idx) => `${idx + 1}. "${s}"`).join("\n")}
-
-Respond ONLY with a JSON array: [{"input": "...", "core_skill": "..."}]`;
-
-    try {
-      const content = await callAI(token, systemPrompt, userPrompt);
-      const parsed = parseAIJson(content);
-      if (Array.isArray(parsed)) {
-        for (const item of parsed) {
-          if (item.input && item.core_skill) {
-            results.set(item.input, item.core_skill.trim());
-          }
-        }
-      }
-    } catch (err) {
-      console.warn("AI candidate classification batch error:", err);
-    }
-  }
-  return results;
-}
-
-/**
  * AI-powered: Classify demand requirements into core skill categories.
  */
 async function aiClassifyDemandSkills(token, demandEntries, onProgress) {
@@ -198,78 +152,6 @@ Respond ONLY with a JSON array: [{"index": 1, "core_skill": "...", "confidence":
   return results;
 }
 
-/**
- * AI-powered: Match candidates to demands based on skill alignment.
- */
-async function aiMatchCandidates(token, candidateSummaries, demandSkills, onProgress) {
-  const systemPrompt = `You are an IT staffing matching expert. Given a candidate's skills and a list of demand core skills, determine if the candidate is eligible for ANY of the demands.
-
-Rules:
-- A candidate matches if their core skill aligns with any demand core skill
-- Consider related skills: e.g., "Spring Boot" matches "Java" demands, "React" matches "Frontend" demands
-- Be inclusive — if there's reasonable alignment, it's a match
-- Consider experience level and skill depth when available`;
-
-  if (onProgress) onProgress("AI matching candidates to demands...");
-
-  // For efficiency, do a simple core-skill set intersection first,
-  // then use AI only for uncertain cases
-  const demandSkillSet = new Set(demandSkills.map(s => s.toLowerCase().trim()));
-  const matched = [];
-  const uncertain = [];
-
-  for (const cand of candidateSummaries) {
-    const candCore = (cand.coreSkill || "").toLowerCase().trim();
-    if (candCore && demandSkillSet.has(candCore)) {
-      matched.push({ ...cand, matchMethod: "direct" });
-    } else if (candCore) {
-      uncertain.push(cand);
-    }
-  }
-
-  // AI decides on uncertain candidates in batches
-  if (uncertain.length > 0 && onProgress) {
-    onProgress(`AI evaluating ${uncertain.length} borderline candidates...`);
-  }
-
-  const uncertainBatchSize = 25;
-  for (let i = 0; i < uncertain.length; i += uncertainBatchSize) {
-    const batch = uncertain.slice(i, i + uncertainBatchSize);
-    if (onProgress) {
-      onProgress(`AI matching: ${i + batch.length}/${uncertain.length} borderline candidates...`);
-    }
-
-    const userPrompt = `Available demand core skills: ${demandSkills.join(", ")}
-
-Candidates to evaluate:
-${batch.map((c, idx) => `${idx + 1}. Core Skill: "${c.coreSkill}", Detail: "${c.detailSkill || ""}"`).join("\n")}
-
-For each candidate, determine if they match ANY demand skill (consider related technologies).
-Respond ONLY with a JSON array: [{"index": 1, "matches": true/false, "matched_demand": "...or empty"}]`;
-
-    try {
-      const content = await callAI(token, systemPrompt, userPrompt);
-      const parsed = parseAIJson(content);
-      if (Array.isArray(parsed)) {
-        for (const item of parsed) {
-          const idx = (item.index || 1) - 1;
-          if (idx >= 0 && idx < batch.length && item.matches) {
-            matched.push({
-              ...batch[idx],
-              matchMethod: "ai",
-              matchedDemand: item.matched_demand || "",
-            });
-          }
-        }
-      }
-    } catch (err) {
-      console.warn("AI matching batch error:", err);
-    }
-  }
-
-  return matched;
-}
-
 export default function DemandMatcher() {
   const [candFile, setCandFile] = useState("");
   const [candRows, setCandRows] = useState(null);
@@ -324,7 +206,7 @@ export default function DemandMatcher() {
     }
 
     if (!ghToken.trim()) {
-      setError("GitHub token is required — all processing is AI-powered.");
+      setError("GitHub token is required for AI-powered demand classification.");
       setProcessing(false);
       return;
     }
@@ -333,91 +215,35 @@ export default function DemandMatcher() {
 
     try {
       // ───────────────────────────────────────────────────────────
-      // STEP 1: AI detects columns in both files
+      // STEP 1: Process candidates using existing logic
+      //   - Remove E0 skills
+      //   - Select highest priority skill
+      //   - Map to core skill via SKILL_MAP
+      //   - Assign domain
       // ───────────────────────────────────────────────────────────
-      setProgress("🤖 AI analyzing candidate file structure...");
-      const candCols = Object.keys(candRows[0]);
-      const candColMap = await aiDetectColumns(token, candCols, "candidate");
-      console.log("AI detected candidate columns:", candColMap);
+      setProgress("Processing candidates (E0 removal → priority skill → core skill mapping)...");
+      const processed = processRows(candRows, {
+        removeE0: true,
+        addPriority: true,
+      });
 
+      console.log("Processed candidates:", processed.rows.length, "columns:", processed.columns);
+
+      // ───────────────────────────────────────────────────────────
+      // STEP 2: AI classifies demand skills
+      // ───────────────────────────────────────────────────────────
       setProgress("🤖 AI analyzing demand file structure...");
       const demandCols = Object.keys(demandRows[0]);
       const demandColMap = await aiDetectColumns(token, demandCols, "demand");
       console.log("AI detected demand columns:", demandColMap);
 
-      if (!candColMap || (!candColMap.primary_skill && !candColMap.secondary_skill)) {
-        setError(`AI could not identify skill columns in the candidate file. Columns found: ${candCols.slice(0, 10).join(", ")}`);
-        setProcessing(false);
-        return;
-      }
-
-      // ───────────────────────────────────────────────────────────
-      // STEP 2: AI classifies candidate skills
-      // ───────────────────────────────────────────────────────────
-      setProgress("🤖 AI extracting candidate skills...");
-
-      // Extract unique skill texts from candidates
-      const primaryCol = candColMap.primary_skill;
-      const secondaryCol = candColMap.secondary_skill;
-      const uniqueSkills = new Set();
-
-      for (const row of candRows) {
-        const primary = primaryCol ? String(row[primaryCol] || "").trim() : "";
-        const secondary = secondaryCol ? String(row[secondaryCol] || "").trim() : "";
-        // Split semicolons and collect individual skill segments
-        for (const cell of [primary, secondary]) {
-          for (const seg of cell.split(";")) {
-            const s = seg.trim();
-            if (s && s.length < 200) uniqueSkills.add(s);
-          }
-        }
-      }
-
-      setProgress(`🤖 AI classifying ${uniqueSkills.size} unique candidate skills...`);
-      const skillClassifications = await aiClassifyCandidateSkills(
-        token,
-        [...uniqueSkills],
-        setProgress
-      );
-
-      // Build processed candidate data with AI-assigned core skills
-      const processedCandidates = candRows.map((row) => {
-        const primary = primaryCol ? String(row[primaryCol] || "").trim() : "";
-        const secondary = secondaryCol ? String(row[secondaryCol] || "").trim() : "";
-
-        // Find the highest-classified skill
-        let bestSkill = "";
-        let bestCore = "";
-        for (const cell of [primary, secondary]) {
-          for (const seg of cell.split(";")) {
-            const s = seg.trim();
-            if (s && skillClassifications.has(s) && !bestCore) {
-              bestSkill = s;
-              bestCore = skillClassifications.get(s);
-            }
-          }
-        }
-
-        return {
-          ...row,
-          _aiCoreSkill: bestCore,
-          _aiDetailSkill: bestSkill,
-          _empId: candColMap.emp_id ? row[candColMap.emp_id] : "",
-          _empName: candColMap.emp_name ? row[candColMap.emp_name] : "",
-        };
-      });
-
-      // ───────────────────────────────────────────────────────────
-      // STEP 3: AI classifies demand skills
-      // ───────────────────────────────────────────────────────────
       setProgress("🤖 AI extracting demand requirements...");
 
       const coreSkillCol = demandColMap?.core_skill;
       const detailSkillCol = demandColMap?.detail_skill;
       const roleCol = demandColMap?.role;
 
-      // Build demand entries for AI to classify
-      // Also look for any column with "skill", "technology", "competenc" in its name as fallback
+      // Also look for any column with "skill", "technology", "competenc" as fallback
       const demandColNames = Object.keys(demandRows[0]);
       const fallbackSkillCols = demandColNames.filter((c) => {
         const cl = c.toLowerCase();
@@ -464,7 +290,7 @@ export default function DemandMatcher() {
       }
 
       if (demandEntries.length === 0) {
-        setError("AI could not extract any skill requirements from the demand file. The file may be empty or have unexpected format.");
+        setError("Could not extract any skill requirements from the demand file.");
         setProcessing(false);
         return;
       }
@@ -495,68 +321,47 @@ export default function DemandMatcher() {
       }
 
       // ───────────────────────────────────────────────────────────
-      // STEP 4: AI matches candidates to demands
+      // STEP 3: Match processed candidates to demand core skills
+      //   Compare candidate's mapped CoreSkill against demand skills
       // ───────────────────────────────────────────────────────────
-      setProgress("🤖 AI matching candidates to demand requirements...");
+      setProgress("Matching processed candidates to demand requirements...");
 
-      const candidateSummaries = processedCandidates.map((c, i) => ({
-        index: i,
-        coreSkill: c._aiCoreSkill,
-        detailSkill: c._aiDetailSkill,
-      }));
+      const demandSkillsLower = new Set([...demandCoreSkills].map(s => s.toLowerCase().trim()));
 
-      const matchedResults = await aiMatchCandidates(
-        token,
-        candidateSummaries,
-        [...demandCoreSkills],
-        setProgress
-      );
+      const matchedRows = processed.rows.filter((row) => {
+        const candidateCore = String(row["CoreSkill"] || "").trim();
+        if (!candidateCore) return false;
 
-      // Build output rows
-      const matchedIndices = new Set(matchedResults.map((m) => m.index));
-      const outputColumns = [
-        ...(candColMap.emp_id ? [candColMap.emp_id] : []),
-        ...(candColMap.emp_name ? [candColMap.emp_name] : []),
-        ...(candColMap.experience ? [candColMap.experience] : []),
-        ...(candColMap.grade ? [candColMap.grade] : []),
-        ...(candColMap.location ? [candColMap.location] : []),
-        ...(candColMap.service_line ? [candColMap.service_line] : []),
-        ...(primaryCol ? [primaryCol] : []),
-        ...(secondaryCol ? [secondaryCol] : []),
-        "AI Core Skill",
-        "AI Matched Demand",
-      ];
+        // Direct match
+        if (demandCoreSkills.has(candidateCore)) return true;
+        if (demandSkillsLower.has(candidateCore.toLowerCase())) return true;
 
-      const outputRows = [];
-      for (const m of matchedResults) {
-        const row = processedCandidates[m.index];
-        const outRow = {};
-        for (const col of outputColumns) {
-          if (col === "AI Core Skill") outRow[col] = row._aiCoreSkill;
-          else if (col === "AI Matched Demand") outRow[col] = m.matchedDemand || row._aiCoreSkill;
-          else outRow[col] = row[col] ?? "";
+        // Fuzzy: check if candidate core skill is contained in any demand skill or vice versa
+        const candLower = candidateCore.toLowerCase();
+        for (const ds of demandSkillsLower) {
+          if (ds.includes(candLower) || candLower.includes(ds)) return true;
         }
-        outputRows.push(outRow);
-      }
+        return false;
+      });
+
+      const unmatchedCount = processed.rows.length - matchedRows.length;
 
       setMatchResult({
-        rows: outputRows,
-        columns: outputColumns,
+        rows: matchedRows,
+        columns: processed.columns,
         stats: {
-          totalCandidates: candRows.length,
+          totalCandidates: processed.rows.length,
           totalDemands: demandRows.length,
           uniqueDemandSkills: demandCoreSkills.size,
-          uniqueCandSkills: skillClassifications.size,
-          matched: outputRows.length,
-          unmatched: candRows.length - outputRows.length,
+          matched: matchedRows.length,
+          unmatched: unmatchedCount,
           demandSkills: [...demandCoreSkills].sort(),
           demandLog,
           aiSteps: [
-            `Detected ${candCols.length} candidate columns`,
-            `Detected ${demandCols.length} demand columns`,
-            `Classified ${uniqueSkills.size} unique candidate skills`,
+            `Processed ${candRows.length} candidates → ${processed.rows.length} (E0 removed, priority skill selected, core mapped)`,
+            `Detected demand columns: ${[coreSkillCol, detailSkillCol, roleCol, ...fallbackSkillCols].filter(Boolean).join(", ")}`,
             `Classified ${demandEntries.length} unique demand entries → ${demandCoreSkills.size} core skills`,
-            `Matched ${outputRows.length}/${candRows.length} candidates`,
+            `Matched ${matchedRows.length}/${processed.rows.length} candidates to demand`,
           ],
         },
       });
@@ -577,7 +382,7 @@ export default function DemandMatcher() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Matched Candidates");
     const base = candFile.replace(/\.[^.]+$/, "") || "output";
-    XLSX.writeFile(wb, `${base}_ai_matched.xlsx`);
+    XLSX.writeFile(wb, `${base}_demand_matched.xlsx`);
   };
 
   const preview = useMemo(() => {
