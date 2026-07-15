@@ -153,6 +153,7 @@ Respond ONLY with a JSON array: [{"index": 1, "core_skill": "...", "confidence":
               original: batch[idx],
               coreSkill: (item.core_skill || "").trim(),
               confidence: item.confidence || "medium",
+              domain: batch[idx].domain || "",
             });
           }
         }
@@ -320,6 +321,7 @@ export default function DemandMatcher() {
 
       console.log("Demand column mapping:", { coreSkillCol, detailSkillCol, roleCol, fallbackSkillCols });
 
+      const domainCol = demandColMap?.domain;
       const demandEntries = [];
       const seenDemandTexts = new Set();
 
@@ -327,6 +329,7 @@ export default function DemandMatcher() {
         const core = coreSkillCol ? String(row[coreSkillCol] || "").trim() : "";
         const detail = detailSkillCol ? String(row[detailSkillCol] || "").trim() : "";
         const role = roleCol ? String(row[roleCol] || "").trim() : "";
+        const domain = domainCol ? String(row[domainCol] || "").trim() : "";
 
         // Fallback: grab text from any skill-like column
         let fallbackText = "";
@@ -347,6 +350,7 @@ export default function DemandMatcher() {
             core_skill: core || fallbackText,
             detail_skill: detail,
             role,
+            domain,
           });
         }
       }
@@ -364,12 +368,17 @@ export default function DemandMatcher() {
         setProgress
       );
 
-      // Collect unique demand core skills
+      // Collect unique demand core skills and build CoreSkill → Domain map
       const demandCoreSkills = new Set();
       const demandLog = [];
+      const coreSkillToDomain = new Map(); // maps AI-classified coreSkill → domain from demand
       for (const item of demandClassifications) {
         if (item.coreSkill) {
           demandCoreSkills.add(item.coreSkill);
+          // Store domain from the demand entry if available
+          if (item.domain) {
+            coreSkillToDomain.set(item.coreSkill.toLowerCase(), item.domain);
+          }
           demandLog.push({ ...item, method: "ai" });
         } else {
           demandLog.push({ ...item, method: "unresolved" });
@@ -395,13 +404,22 @@ export default function DemandMatcher() {
         if (!candidateCore) return false;
 
         // Direct match
-        if (demandCoreSkills.has(candidateCore)) return true;
-        if (demandSkillsLower.has(candidateCore.toLowerCase())) return true;
+        if (demandCoreSkills.has(candidateCore)) {
+          row["Domain"] = coreSkillToDomain.get(candidateCore.toLowerCase()) || row["Domain"] || "";
+          return true;
+        }
+        if (demandSkillsLower.has(candidateCore.toLowerCase())) {
+          row["Domain"] = coreSkillToDomain.get(candidateCore.toLowerCase()) || row["Domain"] || "";
+          return true;
+        }
 
         // Fuzzy: check if candidate core skill is contained in any demand skill or vice versa
         const candLower = candidateCore.toLowerCase();
         for (const ds of demandSkillsLower) {
-          if (ds.includes(candLower) || candLower.includes(ds)) return true;
+          if (ds.includes(candLower) || candLower.includes(ds)) {
+            row["Domain"] = coreSkillToDomain.get(ds) || coreSkillToDomain.get(candLower) || row["Domain"] || "";
+            return true;
+          }
         }
         return false;
       });
