@@ -321,7 +321,19 @@ export default function DemandMatcher() {
 
       console.log("Demand column mapping:", { coreSkillCol, detailSkillCol, roleCol, fallbackSkillCols });
 
-      const domainCol = demandColMap?.domain;
+      // Domain column: AI detection + manual fallback
+      let domainCol = demandColMap?.domain;
+      if (!domainCol) {
+        // Fallback: search for domain-like column names manually
+        const domainFallback = demandColNames.find((c) => {
+          const cl = c.toLowerCase();
+          return cl.includes("domain") || cl.includes("sub domain") || cl.includes("subdomain") ||
+                 cl.includes("business unit") || cl.includes("vertical") || cl.includes("bu ");
+        });
+        if (domainFallback) domainCol = domainFallback;
+      }
+      console.log("Domain column detected:", domainCol);
+
       const demandEntries = [];
       const seenDemandTexts = new Set();
 
@@ -361,6 +373,8 @@ export default function DemandMatcher() {
         return;
       }
 
+      console.log("Sample demand entries (first 5):", demandEntries.slice(0, 5));
+
       setProgress(`🤖 AI classifying ${demandEntries.length} unique demand entries...`);
       const demandClassifications = await aiClassifyDemandSkills(
         token,
@@ -386,6 +400,9 @@ export default function DemandMatcher() {
           demandLog.push({ ...item, method: "unresolved" });
         }
       }
+      console.log("CoreSkill → Domains map:", Object.fromEntries(
+        [...coreSkillToDomains.entries()].map(([k, v]) => [k, [...v]])
+      ));
 
       if (demandCoreSkills.size === 0) {
         setError("AI could not identify any core skills from the demand file entries.");
