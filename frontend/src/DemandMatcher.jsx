@@ -1,8 +1,12 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { processRows } from "./processing.js";
+import { MASTER_SKILL_MAP, CORE_SKILL_LIST, buildMasterReverseMap } from "../../shared/masterSkillMap.js";
 
 const AI_ENDPOINT = "https://models.inference.ai.azure.com/chat/completions";
+
+// Build the reverse map once at load time
+const MASTER_REVERSE = buildMasterReverseMap();
 const AI_MODEL = "gpt-4o-mini";
 
 /** Delay helper for rate limiting */
@@ -112,13 +116,16 @@ Example: {"core_skill": "Core Skill Group", "detail_skill": "Detail Skill", "rol
  * AI-powered: Classify demand requirements into core skill categories.
  */
 async function aiClassifyDemandSkills(token, demandEntries, onProgress) {
-  const systemPrompt = `You are an IT demand/requirement classification expert. Given demand entries (which may include role, skill group, detail skill, or combined text), classify each into a standardized core skill category.
+  const coreSkillsList = CORE_SKILL_LIST.join(", ");
+  const systemPrompt = `You are an IT demand/requirement classification expert. Given demand entries, classify each into ONE of these EXACT core skill categories ONLY:
+
+${coreSkillsList}
 
 Rules:
-- Use the most specific core skill category that fits
-- Common categories: Java, .NET, Python, React, Angular, SAP, Salesforce, Cloud DevOps, Data Engineering, Testing/QA, Project Management, Business Analysis, Scrum Master, DevOps, AWS, Azure, SQL, etc.
-- If the demand mentions a role like "Java Developer" or "React Lead", extract the technology as core skill
-- Return standardized, concise category names`;
+- You MUST pick from the list above. Do not invent new categories.
+- If none of the categories match, return empty string for core_skill.
+- Match based on the technology/skill, not the role title.
+- "Java Developer" → "Java", "React Lead" → "ReactJS", ".NET Engineer" → pick closest or empty.`;
 
   const batchSize = 30;
   const results = [];
@@ -237,10 +244,9 @@ export default function DemandMatcher() {
       // STEP 1: Process candidates using existing logic
       //   - Remove E0 skills
       //   - Select highest priority skill
-      //   - Map to core skill via SKILL_MAP
-      //   - Assign domain
+      //   - Map to core skill via old SKILL_MAP (for backward compat)
       // ───────────────────────────────────────────────────────────
-      setProgress("Processing candidates (E0 removal → priority skill → core skill mapping)...");
+      setProgress("Step 1: Processing candidates (E0 removal → priority skill selection)...");
       const processed = processRows(candRows, {
         removeE0: true,
         addPriority: true,
@@ -249,90 +255,41 @@ export default function DemandMatcher() {
       console.log("Processed candidates:", processed.rows.length, "columns:", processed.columns);
 
       // ───────────────────────────────────────────────────────────
-      // STEP 1b: AI classifies unmapped candidates
-      //   For candidates where SKILL_MAP couldn't find a core skill,
-      //   use AI to classify their detail skill.
+      // STEP 2: Re-map ALL candidates using the Master Skill Table
+      //   The Master Table is the single source of truth.
+      //   Overwrite any previous CoreSkill with the Master Table result.
       // ───────────────────────────────────────────────────────────
-      const unmappedRows = processed.rows.filter(r => !r["CoreSkill"]);
-      if (unmappedRows.length > 0) {
-        setProgress(`🤖 AI classifying ${unmappedRows.length} unmapped candidate skills...`);
+      setProgress("Step 2: Mapping candidates to Master Skill Table (52 core skills)...");
 
-        // Collect unique unmapped detail skills
-        const unmappedSkills = new Set();
-        for (const row of unmappedRows) {
-          const detail = String(row["Detail Skill Set"] || "").trim();
-          if (detail && detail !== "(none)") unmappedSkills.add(detail);
+      let masterMapped = 0;
+      let unmappedCount = 0;
+      for (const row of processed.rows) {
+        const detailSkill = String(row["Detail Skill Set"] || "").trim();
+        if (!detailSkill) {
+          row["CoreSkill"] = "";
+          unmappedCount++;
+          continue;
         }
 
-        if (unmappedSkills.size > 0) {
-          const skillList = [...unmappedSkills];
-          const batchSize = 30;
-          const aiMappings = new Map();
+        // Try to match against Master Reverse Map
+        const norm = detailSkill.toLowerCase().replace(/[^a-z0-9]/g, " ").replace(/\s+/g, " ").trim();
+        const stripped = detailSkill.replace(/^.*?:\s*/, "").toLowerCase().replace(/[^a-z0-9]/g, " ").replace(/\s+/g, " ").trim();
 
-          for (let i = 0; i < skillList.length; i += batchSize) {
-            const batch = skillList.slice(i, i + batchSize);
-            setProgress(`🤖 AI classifying unmapped skills: ${Math.min(i + batchSize, skillList.length)}/${skillList.length}`);
+        const core = MASTER_REVERSE.get(norm) ||
+                     MASTER_REVERSE.get(stripped) ||
+                     MASTER_REVERSE.get(detailSkill.toLowerCase()) || "";
 
-            const userPrompt = `Normalize these IT skill names to their shortest standard form. Do NOT reclassify into different skills/roles:
-${batch.map((s, idx) => `${idx + 1}. "${s}"`).join("\n")}
-
-Respond ONLY with a JSON array: [{"index": 1, "core_skill": "...", "domain": "..."}]
-Examples: "Core Java"→"Java", "ReactJS"→"React", "Amazon Web Service(AWS) Cloud Computing"→"AWS", "Agile Way of Working"→"Agile" (NOT Scrum Master!)
-Domains: Technology, Digital, BFSI, Healthcare, Retail, Manufacturing, Telecom, Energy, Media, Infrastructure, Analytics, ERP, Security, Cloud, Management, etc.`;
-
-            try {
-              const content = await callAI(token,
-                `You are an IT skill name normalizer. Your job is to SHORTEN and STANDARDIZE skill names, NOT to reclassify them into different skills or roles.
-
-RULES:
-- Only normalize the name to a shorter, standard form
-- "Core Java" → "Java" ✓ (same skill, shorter name)
-- "Amazon Web Service(AWS) Cloud Computing" → "AWS" ✓ (same skill, shorter name)
-- "ReactJS" → "React" ✓ (same skill, shorter name)
-- "Core .NET Technologies" → ".NET" ✓ (same skill, shorter name)
-- "Agile Way of Working" → "Agile" ✓ (NOT "Scrum Master" — that's a different role!)
-- "Manual Testing Processes and Management" → "Manual Testing" ✓ (NOT "Automation Testing")
-- "Communication" → "Communication" ✓ (keep as-is, don't reclassify)
-- DO NOT generalize a skill into a broader role/category it doesn't directly represent
-- If unsure, keep the original name shortened but don't change its meaning`,
-                userPrompt);
-              const parsed = parseAIJson(content);
-              if (Array.isArray(parsed)) {
-                for (const item of parsed) {
-                  const idx = (item.index || 1) - 1;
-                  if (idx >= 0 && idx < batch.length && item.core_skill) {
-                    aiMappings.set(batch[idx], {
-                      coreSkill: item.core_skill.trim(),
-                      domain: (item.domain || "").trim(),
-                    });
-                  }
-                }
-              }
-            } catch (err) {
-              console.warn("AI unmapped classification error:", err);
-            }
-            // Rate limit: pause between batches
-            if (i + batchSize < skillList.length) await delay(2000);
-          }
-
-          // Apply AI mappings to unmapped rows
-          let aiMapped = 0;
-          for (const row of processed.rows) {
-            if (!row["CoreSkill"]) {
-              const detail = String(row["Detail Skill Set"] || "").trim();
-              const mapping = aiMappings.get(detail);
-              if (mapping) {
-                row["CoreSkill"] = mapping.coreSkill;
-                if (mapping.domain && !row["Domain"]) {
-                  row["Domain"] = mapping.domain;
-                }
-                aiMapped++;
-              }
-            }
-          }
-          console.log(`AI mapped ${aiMapped} previously unmapped candidates`);
+        if (core) {
+          row["CoreSkill"] = core;
+          masterMapped++;
+        } else {
+          row["CoreSkill"] = "";
+          unmappedCount++;
         }
       }
+
+      console.log(`Master Table mapped: ${masterMapped}, Unmapped: ${unmappedCount}`);
+      setProgress(`Mapped ${masterMapped}/${processed.rows.length} candidates via Master Table`);
 
       // ───────────────────────────────────────────────────────────
       // STEP 2: AI classifies demand skills
@@ -463,10 +420,10 @@ RULES:
           demandSkills: [...demandCoreSkills].sort(),
           demandLog,
           aiSteps: [
-            `Processed ${candRows.length} candidates → ${processed.rows.length} (E0 removed, priority skill selected, core mapped)`,
-            `SKILL_MAP mapped: ${processed.rows.filter(r => r["CoreSkill"]).length} candidates, AI fallback for unmapped skills`,
+            `Processed ${candRows.length} candidates → ${processed.rows.length} (E0 removed, priority skill selected)`,
+            `Master Table mapped: ${masterMapped}/${processed.rows.length} candidates, ${unmappedCount} unmapped (no valid skill in table)`,
             `Detected demand columns: ${[coreSkillCol, detailSkillCol, roleCol, ...fallbackSkillCols].filter(Boolean).join(", ")}`,
-            `Classified ${demandEntries.length} unique demand entries → ${demandCoreSkills.size} core skills`,
+            `AI classified ${demandEntries.length} unique demand entries → ${demandCoreSkills.size} core skills (constrained to 52 categories)`,
             `Matched ${matchedRows.length}/${processed.rows.length} candidates to demand`,
           ],
         },
