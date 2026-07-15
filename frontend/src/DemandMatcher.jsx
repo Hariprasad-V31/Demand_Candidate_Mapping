@@ -165,6 +165,7 @@ Respond ONLY with a JSON array: [{"index": 1, "core_skill": "...", "confidence":
 
     try {
       const content = await callAI(token, systemPrompt, userPrompt);
+      console.log("AI demand classification response:", content.slice(0, 300));
       const parsed = parseAIJson(content);
       if (Array.isArray(parsed)) {
         for (const item of parsed) {
@@ -177,11 +178,20 @@ Respond ONLY with a JSON array: [{"index": 1, "core_skill": "...", "confidence":
             });
           }
         }
+      } else {
+        console.warn("AI demand response not parseable as array:", content.slice(0, 200));
+        // Fallback: use the core_skill field from the input directly
+        for (const entry of batch) {
+          const direct = entry.core_skill || entry.detail_skill || entry.role || "";
+          results.push({ original: entry, coreSkill: direct, confidence: "fallback" });
+        }
       }
     } catch (err) {
       console.warn("AI demand classification batch error:", err);
+      // Fallback: use input data as-is
       for (const entry of batch) {
-        results.push({ original: entry, coreSkill: "", confidence: "error" });
+        const direct = entry.core_skill || entry.detail_skill || entry.role || "";
+        results.push({ original: entry, coreSkill: direct, confidence: "error" });
       }
     }
   }
@@ -407,6 +417,21 @@ export default function DemandMatcher() {
       const roleCol = demandColMap?.role;
 
       // Build demand entries for AI to classify
+      // Also look for any column with "skill", "technology", "competenc" in its name as fallback
+      const demandColNames = Object.keys(demandRows[0]);
+      const fallbackSkillCols = demandColNames.filter((c) => {
+        const cl = c.toLowerCase();
+        return (
+          cl.includes("skill") ||
+          cl.includes("skil") ||
+          cl.includes("technology") ||
+          cl.includes("competenc") ||
+          cl.includes("primary tech")
+        );
+      });
+
+      console.log("Demand column mapping:", { coreSkillCol, detailSkillCol, roleCol, fallbackSkillCols });
+
       const demandEntries = [];
       const seenDemandTexts = new Set();
 
@@ -414,10 +439,27 @@ export default function DemandMatcher() {
         const core = coreSkillCol ? String(row[coreSkillCol] || "").trim() : "";
         const detail = detailSkillCol ? String(row[detailSkillCol] || "").trim() : "";
         const role = roleCol ? String(row[roleCol] || "").trim() : "";
-        const key = `${core}|${detail}|${role}`;
-        if (!seenDemandTexts.has(key) && (core || detail || role)) {
+
+        // Fallback: grab text from any skill-like column
+        let fallbackText = "";
+        if (!core && !detail) {
+          for (const fc of fallbackSkillCols) {
+            const val = String(row[fc] || "").trim();
+            if (val && val.length < 200) {
+              fallbackText = val;
+              break;
+            }
+          }
+        }
+
+        const key = `${core}|${detail}|${role}|${fallbackText}`;
+        if (!seenDemandTexts.has(key) && (core || detail || role || fallbackText)) {
           seenDemandTexts.add(key);
-          demandEntries.push({ core_skill: core, detail_skill: detail, role });
+          demandEntries.push({
+            core_skill: core || fallbackText,
+            detail_skill: detail,
+            role,
+          });
         }
       }
 
