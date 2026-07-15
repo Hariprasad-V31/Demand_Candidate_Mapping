@@ -254,11 +254,12 @@ export default function DemandMatcher() {
             const batch = skillList.slice(i, i + batchSize);
             setProgress(`🤖 AI classifying unmapped skills: ${Math.min(i + batchSize, skillList.length)}/${skillList.length}`);
 
-            const userPrompt = `Classify these IT skill descriptions into a single standardized core skill category each:
+            const userPrompt = `Classify these IT skill descriptions. For each, provide the core skill category AND the business domain it belongs to:
 ${batch.map((s, idx) => `${idx + 1}. "${s}"`).join("\n")}
 
-Respond ONLY with a JSON array: [{"index": 1, "core_skill": "..."}]
-Use concise, standard names like: Java, .NET, Python, React, Angular, DevOps, AWS, Azure, Data Engineering, Testing, Business Analysis, Project Management, SAP, Salesforce, Cybersecurity, etc.`;
+Respond ONLY with a JSON array: [{"index": 1, "core_skill": "...", "domain": "..."}]
+Core skills: Java, .NET, Python, React, Angular, DevOps, AWS, Azure, Data Engineering, Testing, Business Analysis, Project Management, SAP, Salesforce, Cybersecurity, Scrum Master, etc.
+Domains: Technology, Digital, BFSI, Healthcare, Retail, Manufacturing, Telecom, Energy, Media, Infrastructure, Analytics, ERP, Security, Cloud, Management, etc.`;
 
             try {
               const content = await callAI(token,
@@ -269,7 +270,10 @@ Use concise, standard names like: Java, .NET, Python, React, Angular, DevOps, AW
                 for (const item of parsed) {
                   const idx = (item.index || 1) - 1;
                   if (idx >= 0 && idx < batch.length && item.core_skill) {
-                    aiMappings.set(batch[idx], item.core_skill.trim());
+                    aiMappings.set(batch[idx], {
+                      coreSkill: item.core_skill.trim(),
+                      domain: (item.domain || "").trim(),
+                    });
                   }
                 }
               }
@@ -283,9 +287,12 @@ Use concise, standard names like: Java, .NET, Python, React, Angular, DevOps, AW
           for (const row of processed.rows) {
             if (!row["CoreSkill"]) {
               const detail = String(row["Detail Skill Set"] || "").trim();
-              const aiCore = aiMappings.get(detail);
-              if (aiCore) {
-                row["CoreSkill"] = aiCore;
+              const mapping = aiMappings.get(detail);
+              if (mapping) {
+                row["CoreSkill"] = mapping.coreSkill;
+                if (mapping.domain && !row["Domain"]) {
+                  row["Domain"] = mapping.domain;
+                }
                 aiMapped++;
               }
             }
