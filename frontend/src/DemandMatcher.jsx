@@ -5,33 +5,50 @@ import { processRows } from "./processing.js";
 const AI_ENDPOINT = "https://models.inference.ai.azure.com/chat/completions";
 const AI_MODEL = "gpt-4o-mini";
 
+/** Delay helper for rate limiting */
+const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+
 /**
- * Call the GitHub Models API with a prompt.
+ * Call the GitHub Models API with a prompt. Includes retry with backoff for 429 errors.
  */
 async function callAI(token, systemPrompt, userPrompt, temperature = 0.1) {
-  const response = await fetch(AI_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      model: AI_MODEL,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      temperature,
-    }),
-  });
+  const maxRetries = 3;
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`AI API error ${response.status}: ${errText}`);
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const response = await fetch(AI_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        model: AI_MODEL,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        temperature,
+      }),
+    });
+
+    if (response.status === 429 && attempt < maxRetries) {
+      // Rate limited — wait and retry
+      const waitSecs = Math.min(15 * (attempt + 1), 60);
+      console.warn(`Rate limited (429), waiting ${waitSecs}s before retry ${attempt + 1}...`);
+      await delay(waitSecs * 1000);
+      continue;
+    }
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`AI API error ${response.status}: ${errText}`);
+    }
+
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content || "";
   }
 
-  const data = await response.json();
-  return data.choices?.[0]?.message?.content || "";
+  throw new Error("Max retries exceeded for AI API");
 }
 
 /**
@@ -103,7 +120,7 @@ Rules:
 - If the demand mentions a role like "Java Developer" or "React Lead", extract the technology as core skill
 - Return standardized, concise category names`;
 
-  const batchSize = 15;
+  const batchSize = 30;
   const results = [];
 
   for (let i = 0; i < demandEntries.length; i += batchSize) {
@@ -148,6 +165,8 @@ Respond ONLY with a JSON array: [{"index": 1, "core_skill": "...", "confidence":
         results.push({ original: entry, coreSkill: direct, confidence: "error" });
       }
     }
+    // Rate limit: pause between batches
+    if (i + batchSize < demandEntries.length) await delay(2000);
   }
   return results;
 }
@@ -247,7 +266,7 @@ export default function DemandMatcher() {
 
         if (unmappedSkills.size > 0) {
           const skillList = [...unmappedSkills];
-          const batchSize = 20;
+          const batchSize = 30;
           const aiMappings = new Map();
 
           for (let i = 0; i < skillList.length; i += batchSize) {
@@ -292,6 +311,8 @@ RULES:
             } catch (err) {
               console.warn("AI unmapped classification error:", err);
             }
+            // Rate limit: pause between batches
+            if (i + batchSize < skillList.length) await delay(2000);
           }
 
           // Apply AI mappings to unmapped rows
