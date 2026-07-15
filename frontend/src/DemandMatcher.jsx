@@ -230,6 +230,71 @@ export default function DemandMatcher() {
       console.log("Processed candidates:", processed.rows.length, "columns:", processed.columns);
 
       // ───────────────────────────────────────────────────────────
+      // STEP 1b: AI classifies unmapped candidates
+      //   For candidates where SKILL_MAP couldn't find a core skill,
+      //   use AI to classify their detail skill.
+      // ───────────────────────────────────────────────────────────
+      const unmappedRows = processed.rows.filter(r => !r["CoreSkill"]);
+      if (unmappedRows.length > 0) {
+        setProgress(`🤖 AI classifying ${unmappedRows.length} unmapped candidate skills...`);
+
+        // Collect unique unmapped detail skills
+        const unmappedSkills = new Set();
+        for (const row of unmappedRows) {
+          const detail = String(row["Detail Skill Set"] || "").trim();
+          if (detail && detail !== "(none)") unmappedSkills.add(detail);
+        }
+
+        if (unmappedSkills.size > 0) {
+          const skillList = [...unmappedSkills];
+          const batchSize = 20;
+          const aiMappings = new Map();
+
+          for (let i = 0; i < skillList.length; i += batchSize) {
+            const batch = skillList.slice(i, i + batchSize);
+            setProgress(`🤖 AI classifying unmapped skills: ${Math.min(i + batchSize, skillList.length)}/${skillList.length}`);
+
+            const userPrompt = `Classify these IT skill descriptions into a single standardized core skill category each:
+${batch.map((s, idx) => `${idx + 1}. "${s}"`).join("\n")}
+
+Respond ONLY with a JSON array: [{"index": 1, "core_skill": "..."}]
+Use concise, standard names like: Java, .NET, Python, React, Angular, DevOps, AWS, Azure, Data Engineering, Testing, Business Analysis, Project Management, SAP, Salesforce, Cybersecurity, etc.`;
+
+            try {
+              const content = await callAI(token,
+                "You are an IT skill classification expert. Classify each skill into a standardized core skill category.",
+                userPrompt);
+              const parsed = parseAIJson(content);
+              if (Array.isArray(parsed)) {
+                for (const item of parsed) {
+                  const idx = (item.index || 1) - 1;
+                  if (idx >= 0 && idx < batch.length && item.core_skill) {
+                    aiMappings.set(batch[idx], item.core_skill.trim());
+                  }
+                }
+              }
+            } catch (err) {
+              console.warn("AI unmapped classification error:", err);
+            }
+          }
+
+          // Apply AI mappings to unmapped rows
+          let aiMapped = 0;
+          for (const row of processed.rows) {
+            if (!row["CoreSkill"]) {
+              const detail = String(row["Detail Skill Set"] || "").trim();
+              const aiCore = aiMappings.get(detail);
+              if (aiCore) {
+                row["CoreSkill"] = aiCore;
+                aiMapped++;
+              }
+            }
+          }
+          console.log(`AI mapped ${aiMapped} previously unmapped candidates`);
+        }
+      }
+
+      // ───────────────────────────────────────────────────────────
       // STEP 2: AI classifies demand skills
       // ───────────────────────────────────────────────────────────
       setProgress("🤖 AI analyzing demand file structure...");
@@ -359,6 +424,7 @@ export default function DemandMatcher() {
           demandLog,
           aiSteps: [
             `Processed ${candRows.length} candidates → ${processed.rows.length} (E0 removed, priority skill selected, core mapped)`,
+            `SKILL_MAP mapped: ${processed.rows.filter(r => r["CoreSkill"]).length} candidates, AI fallback for unmapped skills`,
             `Detected demand columns: ${[coreSkillCol, detailSkillCol, roleCol, ...fallbackSkillCols].filter(Boolean).join(", ")}`,
             `Classified ${demandEntries.length} unique demand entries → ${demandCoreSkills.size} core skills`,
             `Matched ${matchedRows.length}/${processed.rows.length} candidates to demand`,
