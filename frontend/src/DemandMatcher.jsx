@@ -273,6 +273,7 @@ export default function DemandMatcher() {
 
   const [ghToken, setGhToken] = useState(import.meta.env.VITE_GH_TOKEN || "");
   const hasEnvToken = Boolean(import.meta.env.VITE_GH_TOKEN);
+  const [showManualToken, setShowManualToken] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState("");
 
@@ -609,26 +610,45 @@ export default function DemandMatcher() {
         </div>
 
         {/* GitHub token */}
-        {!hasEnvToken && (
-          <div className="token-section">
-            <label className="upload-label">🔑 GitHub Token (powers all AI processing)</label>
-            <input
-              type="password"
-              className="token-input"
-              placeholder="ghp_... or github_pat_..."
-              value={ghToken}
-              onChange={(e) => setGhToken(e.target.value)}
-            />
-            <div className="token-hint">
-              Required — all processing (column detection, skill classification, matching) is AI-powered via GitHub Models API.
-            </div>
-          </div>
-        )}
-        {hasEnvToken && (
-          <div className="token-section">
-            <div className="token-configured">✓ AI processing is pre-configured (GitHub Models API)</div>
-          </div>
-        )}
+        <div className="token-section">
+          {hasEnvToken && !showManualToken && (
+            <>
+              <div className="token-configured">
+                ✓ AI processing is pre-configured (GitHub Models API)
+                <button
+                  style={{ marginLeft: 12, fontSize: 12, cursor: "pointer", background: "none", border: "1px solid #ccc", borderRadius: 4, padding: "2px 8px" }}
+                  onClick={() => setShowManualToken(true)}
+                >
+                  Use different token
+                </button>
+              </div>
+            </>
+          )}
+          {(!hasEnvToken || showManualToken) && (
+            <>
+              <label className="upload-label">🔑 GitHub Token (powers all AI processing)</label>
+              <input
+                type="password"
+                className="token-input"
+                placeholder="github_pat_... or ghp_..."
+                value={showManualToken ? (ghToken === import.meta.env.VITE_GH_TOKEN ? "" : ghToken) : ghToken}
+                onChange={(e) => setGhToken(e.target.value)}
+              />
+              <div className="token-hint">
+                Paste your GitHub token with <strong>Models: Read</strong> permission. Get one at{" "}
+                <a href="https://github.com/settings/tokens?type=beta" target="_blank" rel="noreferrer">github.com/settings/tokens</a>
+              </div>
+              {showManualToken && (
+                <button
+                  style={{ marginTop: 6, fontSize: 12, cursor: "pointer", background: "none", border: "1px solid #ccc", borderRadius: 4, padding: "2px 8px" }}
+                  onClick={() => { setShowManualToken(false); setGhToken(import.meta.env.VITE_GH_TOKEN || ""); }}
+                >
+                  ← Use pre-configured token
+                </button>
+              )}
+            </>
+          )}
+        </div>
 
         <div className="actions" style={{ marginTop: 18 }}>
           <button
