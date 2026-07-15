@@ -368,16 +368,18 @@ export default function DemandMatcher() {
         setProgress
       );
 
-      // Collect unique demand core skills and build CoreSkill → Domain map
+      // Collect unique demand core skills and build CoreSkill → Domains map
       const demandCoreSkills = new Set();
       const demandLog = [];
-      const coreSkillToDomain = new Map(); // maps AI-classified coreSkill → domain from demand
+      const coreSkillToDomains = new Map(); // maps coreSkill → Set of domains
       for (const item of demandClassifications) {
         if (item.coreSkill) {
           demandCoreSkills.add(item.coreSkill);
-          // Store domain from the demand entry if available
+          // Collect ALL domains for this core skill
           if (item.domain) {
-            coreSkillToDomain.set(item.coreSkill.toLowerCase(), item.domain);
+            const key = item.coreSkill.toLowerCase();
+            if (!coreSkillToDomains.has(key)) coreSkillToDomains.set(key, new Set());
+            coreSkillToDomains.get(key).add(item.domain);
           }
           demandLog.push({ ...item, method: "ai" });
         } else {
@@ -399,17 +401,23 @@ export default function DemandMatcher() {
 
       const demandSkillsLower = new Set([...demandCoreSkills].map(s => s.toLowerCase().trim()));
 
+      // Helper: get joined domain string for a core skill key
+      const getDomainStr = (key) => {
+        const domains = coreSkillToDomains.get(key);
+        return domains ? [...domains].join("/") : "";
+      };
+
       const matchedRows = processed.rows.filter((row) => {
         const candidateCore = String(row["CoreSkill"] || "").trim();
         if (!candidateCore) return false;
 
         // Direct match
         if (demandCoreSkills.has(candidateCore)) {
-          row["Domain"] = coreSkillToDomain.get(candidateCore.toLowerCase()) || row["Domain"] || "";
+          row["Domain"] = getDomainStr(candidateCore.toLowerCase()) || row["Domain"] || "";
           return true;
         }
         if (demandSkillsLower.has(candidateCore.toLowerCase())) {
-          row["Domain"] = coreSkillToDomain.get(candidateCore.toLowerCase()) || row["Domain"] || "";
+          row["Domain"] = getDomainStr(candidateCore.toLowerCase()) || row["Domain"] || "";
           return true;
         }
 
@@ -417,7 +425,7 @@ export default function DemandMatcher() {
         const candLower = candidateCore.toLowerCase();
         for (const ds of demandSkillsLower) {
           if (ds.includes(candLower) || candLower.includes(ds)) {
-            row["Domain"] = coreSkillToDomain.get(ds) || coreSkillToDomain.get(candLower) || row["Domain"] || "";
+            row["Domain"] = getDomainStr(ds) || getDomainStr(candLower) || row["Domain"] || "";
             return true;
           }
         }
