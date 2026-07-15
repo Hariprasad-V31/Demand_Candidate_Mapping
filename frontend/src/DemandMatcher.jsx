@@ -209,25 +209,31 @@ export default function DemandMatcher() {
         const wb = XLSX.read(e.target.result, { type: "array" });
         console.log("Excel sheets:", wb.SheetNames);
 
-        // Smart sheet selection: prefer a sheet with demand-relevant columns
-        const demandKeywords = ["domain", "subdomain", "core skill", "detail skill", "core skil"];
-        let bestSheet = null;
+        // Prefer the "Query" sheet if it exists, otherwise smart-detect
         let bestSheetName = wb.SheetNames[0];
+        let rows;
 
-        for (const name of wb.SheetNames) {
-          const s = wb.Sheets[name];
-          const testRows = XLSX.utils.sheet_to_json(s, { defval: "" });
-          if (!testRows.length) continue;
-          const cols = Object.keys(testRows[0]).map(c => c.toLowerCase());
-          const matches = demandKeywords.filter(kw => cols.some(c => c.includes(kw)));
-          if (matches.length > 0 && (!bestSheet || matches.length > bestSheet.matchCount)) {
-            bestSheet = { rows: testRows, matchCount: matches.length };
-            bestSheetName = name;
+        const querySheetName = wb.SheetNames.find(n => n.toLowerCase().includes("query"));
+        if (querySheetName) {
+          bestSheetName = querySheetName;
+          rows = XLSX.utils.sheet_to_json(wb.Sheets[querySheetName], { defval: "" });
+        } else {
+          // Fallback: find sheet with demand-relevant columns
+          const demandKeywords = ["domain", "subdomain", "core skill", "detail skill", "core skil"];
+          let bestMatch = null;
+          for (const name of wb.SheetNames) {
+            const s = wb.Sheets[name];
+            const testRows = XLSX.utils.sheet_to_json(s, { defval: "" });
+            if (!testRows.length) continue;
+            const cols = Object.keys(testRows[0]).map(c => c.toLowerCase());
+            const matches = demandKeywords.filter(kw => cols.some(c => c.includes(kw)));
+            if (matches.length > 0 && (!bestMatch || matches.length > bestMatch.matchCount)) {
+              bestMatch = { rows: testRows, matchCount: matches.length };
+              bestSheetName = name;
+            }
           }
+          rows = bestMatch ? bestMatch.rows : XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
         }
-
-        // Use best matching sheet, or fall back to first sheet
-        const rows = bestSheet ? bestSheet.rows : XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
         if (!rows.length) {
           setError("The file appears to be empty.");
           return;
