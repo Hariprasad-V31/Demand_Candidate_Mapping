@@ -207,12 +207,14 @@ export default function DemandMatcher() {
     reader.onload = (e) => {
       try {
         const wb = XLSX.read(e.target.result, { type: "array" });
+        console.log("Excel sheets:", wb.SheetNames);
         const sheet = wb.Sheets[wb.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
         if (!rows.length) {
           setError("The file appears to be empty.");
           return;
         }
+        console.log("Loaded sheet:", wb.SheetNames[0], "Columns:", Object.keys(rows[0]));
         setRows(rows);
       } catch (err) {
         setError(`Could not read file: ${err.message}`);
@@ -298,6 +300,7 @@ export default function DemandMatcher() {
       // ───────────────────────────────────────────────────────────
       setProgress("🤖 AI analyzing demand file structure...");
       const demandCols = Object.keys(demandRows[0]);
+      console.log("ALL demand file columns:", demandCols);
       const demandColMap = await aiDetectColumns(token, demandCols, "demand");
       console.log("AI detected demand columns:", demandColMap);
 
