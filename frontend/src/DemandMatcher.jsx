@@ -209,36 +209,34 @@ export default function DemandMatcher() {
         const wb = XLSX.read(e.target.result, { type: "array" });
         console.log("Excel sheets:", wb.SheetNames);
 
-        // Prefer the "Query" sheet if it exists, otherwise smart-detect
-        let bestSheetName = wb.SheetNames[0];
-        let rows;
-
-        const querySheetName = wb.SheetNames.find(n => n.toLowerCase().includes("query"));
-        if (querySheetName) {
-          bestSheetName = querySheetName;
-          rows = XLSX.utils.sheet_to_json(wb.Sheets[querySheetName], { defval: "" });
+        // Prefer "Query" sheet, then smart-detect by checking only headers (not full data)
+        let sheetName = wb.SheetNames[0];
+        const querySheet = wb.SheetNames.find(n => n.toLowerCase().includes("query"));
+        if (querySheet) {
+          sheetName = querySheet;
         } else {
-          // Fallback: find sheet with demand-relevant columns
+          // Check only first row of each sheet for demand-relevant columns
           const demandKeywords = ["domain", "subdomain", "core skill", "detail skill", "core skil"];
-          let bestMatch = null;
+          let bestScore = 0;
           for (const name of wb.SheetNames) {
             const s = wb.Sheets[name];
-            const testRows = XLSX.utils.sheet_to_json(s, { defval: "" });
-            if (!testRows.length) continue;
-            const cols = Object.keys(testRows[0]).map(c => c.toLowerCase());
-            const matches = demandKeywords.filter(kw => cols.some(c => c.includes(kw)));
-            if (matches.length > 0 && (!bestMatch || matches.length > bestMatch.matchCount)) {
-              bestMatch = { rows: testRows, matchCount: matches.length };
-              bestSheetName = name;
-            }
+            const ref = s["!ref"];
+            if (!ref) continue;
+            // Only parse first 2 rows to get headers
+            const headerRows = XLSX.utils.sheet_to_json(s, { defval: "", range: 0, header: 1 });
+            if (!headerRows.length) continue;
+            const cols = headerRows[0].map(c => String(c).toLowerCase());
+            const score = demandKeywords.filter(kw => cols.some(c => c.includes(kw))).length;
+            if (score > bestScore) { bestScore = score; sheetName = name; }
           }
-          rows = bestMatch ? bestMatch.rows : XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
         }
+
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" });
         if (!rows.length) {
           setError("The file appears to be empty.");
           return;
         }
-        console.log("Loaded sheet:", bestSheetName, "Columns:", Object.keys(rows[0]));
+        console.log("Loaded sheet:", sheetName, "Columns:", Object.keys(rows[0]));
         setRows(rows);
       } catch (err) {
         setError(`Could not read file: ${err.message}`);
