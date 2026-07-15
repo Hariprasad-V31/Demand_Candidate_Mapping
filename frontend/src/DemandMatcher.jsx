@@ -349,6 +349,30 @@ export default function DemandMatcher() {
 
       console.log("Demand column mapping:", { coreSkillCol, detailSkillCol, roleCol, fallbackSkillCols });
 
+      // ───────────────────────────────────────────────────────────
+      // STEP 2b: Pre-filter demand rows
+      //   Only keep rows where:
+      //   - "Customer Demand or Internal" = customer demand new / customer demand replacement / internal new
+      //   - "Status" = open / resource identified
+      // ───────────────────────────────────────────────────────────
+      const custDemandCol = demandColNames.find(c => c.toLowerCase().includes("customer demand"));
+      const statusCol = demandColMap?.status || demandColNames.find(c => c.toLowerCase() === "status");
+
+      const validDemandTypes = new Set(["customer demand new", "customer demand replacement", "internal new"]);
+      const validStatuses = new Set(["open", "resource identified"]);
+
+      let filteredDemandRows = demandRows;
+      if (custDemandCol || statusCol) {
+        filteredDemandRows = demandRows.filter(row => {
+          const demandType = custDemandCol ? String(row[custDemandCol] || "").trim().toLowerCase() : "";
+          const status = statusCol ? String(row[statusCol] || "").trim().toLowerCase() : "";
+          const typeOk = !custDemandCol || validDemandTypes.has(demandType);
+          const statusOk = !statusCol || validStatuses.has(status);
+          return typeOk && statusOk;
+        });
+        console.log(`Demand pre-filter: ${demandRows.length} → ${filteredDemandRows.length} rows (type col: ${custDemandCol}, status col: ${statusCol})`);
+      }
+
       // Domain column: AI detection + manual fallback
       let domainCol = demandColMap?.domain;
       if (!domainCol) {
@@ -370,7 +394,7 @@ export default function DemandMatcher() {
       const demandEntries = [];
       const seenDemandTexts = new Set();
 
-      for (const row of demandRows) {
+      for (const row of filteredDemandRows) {
         const core = coreSkillCol ? String(row[coreSkillCol] || "").trim() : "";
         const detail = detailSkillCol ? String(row[detailSkillCol] || "").trim() : "";
         const role = roleCol ? String(row[roleCol] || "").trim() : "";
@@ -492,7 +516,7 @@ export default function DemandMatcher() {
         columns: processed.columns,
         stats: {
           totalCandidates: processed.rows.length,
-          totalDemands: demandRows.length,
+          totalDemands: filteredDemandRows.length,
           uniqueDemandSkills: demandCoreSkills.size,
           matched: matchedRows.length,
           unmatched: unmatchedCount,
