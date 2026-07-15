@@ -206,33 +206,17 @@ export default function DemandMatcher() {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const wb = XLSX.read(e.target.result, { type: "array" });
+        // sheetRows: 10000 prevents OOM on sheets with phantom rows (query sheet has 1M+ range)
+        const wb = XLSX.read(e.target.result, { type: "array", sheetRows: 10000 });
         console.log("Excel sheets:", wb.SheetNames);
 
-        // Prefer "Query" sheet, then smart-detect by checking only headers (not full data)
+        // Prefer "query" sheet, otherwise first sheet
         let sheetName = wb.SheetNames[0];
         const querySheet = wb.SheetNames.find(n => n.toLowerCase().includes("query"));
-        if (querySheet) {
-          sheetName = querySheet;
-        } else {
-          // Check only first row of each sheet for demand-relevant columns
-          const demandKeywords = ["domain", "subdomain", "core skill", "detail skill", "core skil"];
-          let bestScore = 0;
-          for (const name of wb.SheetNames) {
-            const s = wb.Sheets[name];
-            const ref = s["!ref"];
-            if (!ref) continue;
-            // Only parse first 2 rows to get headers
-            const headerRows = XLSX.utils.sheet_to_json(s, { defval: "", range: 0, header: 1 });
-            if (!headerRows.length) continue;
-            const cols = headerRows[0].map(c => String(c).toLowerCase());
-            const score = demandKeywords.filter(kw => cols.some(c => c.includes(kw))).length;
-            if (score > bestScore) { bestScore = score; sheetName = name; }
-          }
-        }
+        if (querySheet) sheetName = querySheet;
 
         const rawRows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
-        // Remove rows that are entirely empty and strip __EMPTY columns
+        // Strip __EMPTY columns and empty rows
         const rows = rawRows.map(row => {
           const cleaned = {};
           for (const [k, v] of Object.entries(row)) {
@@ -245,7 +229,7 @@ export default function DemandMatcher() {
           setError("The file appears to be empty.");
           return;
         }
-        console.log("Loaded sheet:", sheetName, "Columns:", Object.keys(rows[0]));
+        console.log("Loaded sheet:", sheetName, "Rows:", rows.length, "Columns:", Object.keys(rows[0]));
         setRows(rows);
       } catch (err) {
         setError(`Could not read file: ${err.message}`);
