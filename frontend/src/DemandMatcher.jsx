@@ -215,16 +215,19 @@ export default function DemandMatcher() {
         const querySheet = wb.SheetNames.find(n => n.toLowerCase().includes("query"));
         if (querySheet) sheetName = querySheet;
 
-        const rawRows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
-        // Strip __EMPTY columns and empty rows
+        // defval:"" keeps every real header column present in every row, even when
+        // the cell is blank (e.g. Primary/Secondary Competency empty in first rows).
+        const rawRows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" });
+        // Drop only headerless __EMPTY phantom columns (demand "query" sheet junk);
+        // keep empty values for real columns so detectColumns can still find them.
         const rows = rawRows.map(row => {
           const cleaned = {};
           for (const [k, v] of Object.entries(row)) {
             if (k.startsWith("__EMPTY")) continue;
-            if (v !== "" && v !== null && v !== undefined) cleaned[k] = v;
+            cleaned[k] = v;
           }
           return cleaned;
-        }).filter(row => Object.keys(row).length > 0);
+        }).filter(row => Object.values(row).some(v => v !== "" && v !== null && v !== undefined));
         if (!rows.length) {
           setError("The file appears to be empty.");
           return;
