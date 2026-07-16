@@ -258,6 +258,24 @@ function findColumn(columns, keyword) {
   return bestDist <= maxDist ? best : null;
 }
 
+// Find the "days unallocated" column, preferring a numeric day-count header
+// (e.g. "No Of Days Unallocated") and rejecting text columns that merely share
+// the word "unallocated" such as "Unallocated Reason"/"Unallocated Status".
+function findDaysColumn(columns) {
+  const candidates = columns.filter((c) => {
+    const n = normalizeHeader(c);
+    const relevant = n.includes("unallocated") || n.includes("days") || n.includes("aging");
+    const isText = n.includes("reason") || n.includes("status") || n.includes("comment");
+    return relevant && !isText;
+  });
+  if (!candidates.length) return null;
+  // Prefer a header that actually mentions "days" (a count) over a bare
+  // "unallocated"; within a tier pick the shortest header.
+  const withDays = candidates.filter((c) => normalizeHeader(c).includes("days"));
+  const pool = withDays.length ? withDays : candidates;
+  return pool.sort((a, b) => a.length - b.length)[0];
+}
+
 export function detectColumns(columns) {
   const primary = findColumn(columns, "primary");
   const secondary = findColumn(columns, "secondary");
@@ -267,11 +285,8 @@ export function detectColumns(columns) {
     findColumn(columns, "exp") ||
     findColumn(columns, "bucket");
   const grade = findColumn(columns, "grade");
-  // "No. of Days Unallocated" / "Unallocated Days" / "Aging".
-  const daysUnallocated =
-    findColumn(columns, "unallocated") ||
-    findColumn(columns, "aging") ||
-    findColumn(columns, "days");
+  // "No. of Days Unallocated" / "Unallocated Days" / "Aging" (numeric count).
+  const daysUnallocated = findDaysColumn(columns);
   return { primary, secondary, experience, grade, daysUnallocated };
 }
 
