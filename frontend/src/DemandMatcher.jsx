@@ -352,14 +352,18 @@ export default function DemandMatcher() {
       const custDemandCol = demandColNames.find(c => c.toLowerCase().includes("customer demand"));
       const statusCol = demandColMap?.status || demandColNames.find(c => c.toLowerCase() === "status");
 
+      // Normalize to lowercase alphanumeric words so "Customer Demand - New",
+      // "Internal - New" etc. (hyphens/extra spaces in the file) match the
+      // allowed set below.
+      const normFilter = (s) => String(s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
       const validDemandTypes = new Set(["customer demand new", "customer demand replacement", "internal new"]);
       const validStatuses = new Set(["open", "resource identified"]);
 
       let filteredDemandRows = demandRows;
       if (custDemandCol || statusCol) {
         filteredDemandRows = demandRows.filter(row => {
-          const demandType = custDemandCol ? String(row[custDemandCol] || "").trim().toLowerCase() : "";
-          const status = statusCol ? String(row[statusCol] || "").trim().toLowerCase() : "";
+          const demandType = custDemandCol ? normFilter(row[custDemandCol]) : "";
+          const status = statusCol ? normFilter(row[statusCol]) : "";
           const typeOk = !custDemandCol || validDemandTypes.has(demandType);
           const statusOk = !statusCol || validStatuses.has(status);
           return typeOk && statusOk;
