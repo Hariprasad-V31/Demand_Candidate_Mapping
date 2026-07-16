@@ -145,6 +145,7 @@ export const MASTER_SKILL_MAP = {
   "SQL Developer": [
     "MySQL",
     "ORACLE SQL",
+    "PL/SQL",
   ],
   "SCCM Engineer": [
     "EUCS_TOOLS_SCCM",
@@ -179,7 +180,8 @@ export const MASTER_SKILL_MAP = {
     "IBM Sterling Commerce OMS",
   ],
   "BY Work Force Management": [
-    "PL/SQL",
+    "BY Work Force Management Consultant",
+    "BY WFM",
   ],
   "SAP S4 HANA Finance": [
     "SAP S/4HANA - Central Finance",
