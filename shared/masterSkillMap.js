@@ -1,7 +1,7 @@
 // Master Skill Table - Authoritative skill mapping
 // Generated from the official skill mapping reference table
 // ONLY these mappings are valid for candidate processing
-// 52 core skills, ~120 detail skill variants
+// 51 core skills, ~120 detail skill variants
 
 export const MASTER_SKILL_MAP = {
   "By WMS Dispatcher": [
@@ -201,6 +201,93 @@ export const MASTER_SKILL_MAP = {
 
 // List of valid core skill categories (for constraining AI demand classification)
 export const CORE_SKILL_LIST = Object.keys(MASTER_SKILL_MAP);
+
+// Core skill -> Domain / Sub-Domain (most frequent in the demand reference data).
+export const CORE_TO_DOMAIN = {
+  "By WMS Dispatcher": "FH&B and International FH&B",
+  "Java": "Food and International Food",
+  "Python": "Engineering",
+  "Angular": "Food and International Food",
+  "DevOps": "Food and International Food",
+  "Database Engineer (Oracle)": "Platform Domain",
+  "Linux": "Platform Domain",
+  "Automation Testing": "FH&B and International FH&B",
+  "Manual Testing": "FH&B and International FH&B",
+  "SAP ABAP": "Central",
+  "SAP BASIS": "Central",
+  "VMWare": "Platform Domain",
+  "Network Engineer": "Platform Domain",
+  "Mulesoft": "EBP",
+  "PLM": "FH&B and International FH&B",
+  "Product Management": "FH&B and International FH&B",
+  "Program Management": "Food and International Food",
+  "Solution Architect": "FH&B and International FH&B",
+  "Business Analyst": "BPS DOS",
+  "Oracle HCM": "Central",
+  "Power BI": "Data & AI Domain",
+  "MiddleWare": "Platform Domain",
+  "Performance Testing": "FH&B and International FH&B",
+  "Mainframe": "Online",
+  "Apigee": "EBP",
+  "SQL Developer": "FH&B and International FH&B",
+  "SCCM Engineer": "Platform Domain",
+  "Data Modeller": "FH&B and International FH&B",
+  "Incident Manager": "Platform Domain",
+  "Change Management": "Platform Domain",
+  "Data Stage": "Platform Domain",
+  "SharePoint Admin": "Platform Domain",
+  "VMO Lead": "Platform Domain",
+  "Software Asset Manager": "Platform Domain",
+  "Sterling OMS": "Online",
+  "BY Work Force Management": "Central",
+  "SAP S4 HANA Finance": "Central",
+  "ITAM": "Platform Domain",
+  "Intune": "Platform Domain",
+  "SAP BTP": "Central"
+};
+
+export const CORE_TO_SUBDOMAIN = {
+  "By WMS Dispatcher": "Supply Chain & Logistics",
+  "Java": "Design, Buy, Make",
+  "Python": "Engineering",
+  "Angular": "Commercial Planning",
+  "DevOps": "Commercial Planning",
+  "Database Engineer (Oracle)": "Connectivity",
+  "Linux": "Connectivity",
+  "Automation Testing": "Supply Chain & Logistics",
+  "Manual Testing": "Post-Purchase",
+  "SAP ABAP": "Finance",
+  "SAP BASIS": "Finance",
+  "VMWare": "Connectivity",
+  "Network Engineer": "Network",
+  "Mulesoft": "Enterprise Integration",
+  "PLM": "Design, Buy, Make",
+  "Product Management": "Design, Buy, Make",
+  "Program Management": "Commercial Planning",
+  "Solution Architect": "Design, Buy, Make",
+  "Business Analyst": "BPS DOS",
+  "Oracle HCM": "People",
+  "Power BI": "Data Product",
+  "MiddleWare": "Connectivity",
+  "Performance Testing": "Finance",
+  "Mainframe": "Customer Programmes",
+  "Apigee": "Enterprise Integration",
+  "SQL Developer": "Supply Chain & Logistics",
+  "SCCM Engineer": "Connectivity",
+  "Data Modeller": "Design, Buy, Make",
+  "Incident Manager": "Service Management",
+  "Change Management": "Service Management",
+  "Data Stage": "Colleague Productivity & Enablement",
+  "SharePoint Admin": "Colleague Productivity & Enablement",
+  "VMO Lead": "Vendor Management Office",
+  "Software Asset Manager": "Vendor Management Office",
+  "Sterling OMS": "Post-Purchase",
+  "BY Work Force Management": "People",
+  "SAP S4 HANA Finance": "Finance",
+  "ITAM": "Connectivity",
+  "Intune": "Colleague Productivity & Enablement",
+  "SAP BTP": "Finance"
+};
 
 // Build reverse map: normalized detail skill name -> core skill
 export function buildMasterReverseMap() {

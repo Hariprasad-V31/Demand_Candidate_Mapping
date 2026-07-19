@@ -12,7 +12,6 @@ const MASTER_TABLE = [
   ["Microservices", ["Microservices"]],
   ["Databricks", ["Databricks", "PySpark", "Azure Databricks"]],
   ["Data Engineering", ["Google Data Engineering"]],
-  ["Azure", ["Microsoft Azure"]],
   ["Python", ["Python"]],
   ["Angular", ["AngularJS", "Angular 2", "Angular4", "Angular5", "Angular 7", "Angular 8", "Angular 9"]],
   ["DevOps", ["DevOps", "Terraform", "Cloud DevOps"]],
@@ -40,7 +39,7 @@ const MASTER_TABLE = [
   ["Performance Testing", ["Performance Testing"]],
   ["Mainframe", ["COBOL", "Mainframe DB2 - Application Development", "IT IS_AMS_Mainframe_DB2 Administration"]],
   ["Apigee", ["APIGEE"]],
-  ["SQL Developer", ["MySQL", "ORACLE SQL"]],
+  ["SQL Developer", ["MySQL", "ORACLE SQL", "PL/SQL"]],
   ["SCCM Engineer", ["EUCS_TOOLS_SCCM", "MECM"]],
   ["Data Modeller", ["Data Warehouse", "Data Concepts & Data Modelling"]],
   ["Incident Manager", ["Incident Management"]],
@@ -51,7 +50,7 @@ const MASTER_TABLE = [
   ["VMO Lead", ["SCM - Vendor Management"]],
   ["Software Asset Manager", ["ITAM (IT Asset Management)"]],
   ["Sterling OMS", ["IBM Sterling Commerce OMS"]],
-  ["BY Work Force Management", ["PL/SQL"]],
+  ["BY Work Force Management", ["BY Work Force Management Consultant", "BY WFM"]],
   ["SAP S4 HANA Finance", ["SAP S/4HANA - Central Finance"]],
   ["IBM WMQ", ["IBM Websphere MQ Series", "Azure Service Bus"]],
   ["ITAM", ["CMDB Management"]],
@@ -59,11 +58,100 @@ const MASTER_TABLE = [
   ["SAP BTP", ["SAP Business Technology Platform (BTP) - Integration Suite"]],
 ];
 
+// Core skill -> Domain / Sub-Domain, derived (most frequent) from the demand
+// reference data. Used by the in-app Skill Mapping reference view. Cores not
+// present in the demand data are omitted and render as "—".
+const CORE_TO_DOMAIN = {
+  "By WMS Dispatcher": "FH&B and International FH&B",
+  "Java": "Food and International Food",
+  "Python": "Engineering",
+  "Angular": "Food and International Food",
+  "DevOps": "Food and International Food",
+  "Database Engineer (Oracle)": "Platform Domain",
+  "Linux": "Platform Domain",
+  "Automation Testing": "FH&B and International FH&B",
+  "Manual Testing": "FH&B and International FH&B",
+  "SAP ABAP": "Central",
+  "SAP BASIS": "Central",
+  "VMWare": "Platform Domain",
+  "Network Engineer": "Platform Domain",
+  "Mulesoft": "EBP",
+  "PLM": "FH&B and International FH&B",
+  "Product Management": "FH&B and International FH&B",
+  "Program Management": "Food and International Food",
+  "Solution Architect": "FH&B and International FH&B",
+  "Business Analyst": "BPS DOS",
+  "Oracle HCM": "Central",
+  "Power BI": "Data & AI Domain",
+  "MiddleWare": "Platform Domain",
+  "Performance Testing": "FH&B and International FH&B",
+  "Mainframe": "Online",
+  "Apigee": "EBP",
+  "SQL Developer": "FH&B and International FH&B",
+  "SCCM Engineer": "Platform Domain",
+  "Data Modeller": "FH&B and International FH&B",
+  "Incident Manager": "Platform Domain",
+  "Change Management": "Platform Domain",
+  "Data Stage": "Platform Domain",
+  "SharePoint Admin": "Platform Domain",
+  "VMO Lead": "Platform Domain",
+  "Software Asset Manager": "Platform Domain",
+  "Sterling OMS": "Online",
+  "BY Work Force Management": "Central",
+  "SAP S4 HANA Finance": "Central",
+  "ITAM": "Platform Domain",
+  "Intune": "Platform Domain",
+  "SAP BTP": "Central",
+};
+
+const CORE_TO_SUBDOMAIN = {
+  "By WMS Dispatcher": "Supply Chain & Logistics",
+  "Java": "Design, Buy, Make",
+  "Python": "Engineering",
+  "Angular": "Commercial Planning",
+  "DevOps": "Commercial Planning",
+  "Database Engineer (Oracle)": "Connectivity",
+  "Linux": "Connectivity",
+  "Automation Testing": "Supply Chain & Logistics",
+  "Manual Testing": "Post-Purchase",
+  "SAP ABAP": "Finance",
+  "SAP BASIS": "Finance",
+  "VMWare": "Connectivity",
+  "Network Engineer": "Network",
+  "Mulesoft": "Enterprise Integration",
+  "PLM": "Design, Buy, Make",
+  "Product Management": "Design, Buy, Make",
+  "Program Management": "Commercial Planning",
+  "Solution Architect": "Design, Buy, Make",
+  "Business Analyst": "BPS DOS",
+  "Oracle HCM": "People",
+  "Power BI": "Data Product",
+  "MiddleWare": "Connectivity",
+  "Performance Testing": "Finance",
+  "Mainframe": "Customer Programmes",
+  "Apigee": "Enterprise Integration",
+  "SQL Developer": "Supply Chain & Logistics",
+  "SCCM Engineer": "Connectivity",
+  "Data Modeller": "Design, Buy, Make",
+  "Incident Manager": "Service Management",
+  "Change Management": "Service Management",
+  "Data Stage": "Colleague Productivity & Enablement",
+  "SharePoint Admin": "Colleague Productivity & Enablement",
+  "VMO Lead": "Vendor Management Office",
+  "Software Asset Manager": "Vendor Management Office",
+  "Sterling OMS": "Post-Purchase",
+  "BY Work Force Management": "People",
+  "SAP S4 HANA Finance": "Finance",
+  "ITAM": "Connectivity",
+  "Intune": "Colleague Productivity & Enablement",
+  "SAP BTP": "Finance",
+};
+
 // Generate the JS module
 let output = `// Master Skill Table - Authoritative skill mapping
 // Generated from the official skill mapping reference table
 // ONLY these mappings are valid for candidate processing
-// 52 core skills, ~120 detail skill variants
+// 51 core skills, ~120 detail skill variants
 
 export const MASTER_SKILL_MAP = {\n`;
 
@@ -78,6 +166,9 @@ for (const [core, details] of MASTER_TABLE) {
 output += `};\n\n`;
 output += `// List of valid core skill categories (for constraining AI demand classification)\n`;
 output += `export const CORE_SKILL_LIST = Object.keys(MASTER_SKILL_MAP);\n\n`;
+output += `// Core skill -> Domain / Sub-Domain (most frequent in the demand reference data).\n`;
+output += `export const CORE_TO_DOMAIN = ${JSON.stringify(CORE_TO_DOMAIN, null, 2)};\n\n`;
+output += `export const CORE_TO_SUBDOMAIN = ${JSON.stringify(CORE_TO_SUBDOMAIN, null, 2)};\n\n`;
 output += `// Build reverse map: normalized detail skill name -> core skill\n`;
 output += `export function buildMasterReverseMap() {\n`;
 output += `  const reverse = new Map();\n`;

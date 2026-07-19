@@ -1,10 +1,9 @@
 import { useState, useMemo } from "react";
 import {
-  SKILL_MAP,
-  CORE_TO_PORTFOLIO_RAW,
+  MASTER_SKILL_MAP as SKILL_MAP,
   CORE_TO_DOMAIN,
   CORE_TO_SUBDOMAIN,
-} from "./skillMap.js";
+} from "../../shared/masterSkillMap.js";
 
 function esc(text) {
   const d = document.createElement("div");
@@ -125,7 +124,6 @@ function DomainTab() {
     return Object.keys(SKILL_MAP)
       .map((core) => ({
         core,
-        portfolio: CORE_TO_PORTFOLIO_RAW[core] || "",
         domain: CORE_TO_DOMAIN[core] || "",
         subDomain: CORE_TO_SUBDOMAIN[core] || "",
       }))
