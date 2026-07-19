@@ -203,10 +203,6 @@ export const MASTER_SKILL_MAP = {
 export const CORE_SKILL_LIST = Object.keys(MASTER_SKILL_MAP);
 
 // Build reverse map: normalized detail skill name -> core skill
-// Cores whose bare name is too generic to be treated as a valid skill on its
-// own (must only match via their specific detail skills).
-const SELF_INDEX_EXCLUDED_CORES = new Set(["RPA"]);
-
 export function buildMasterReverseMap() {
   const reverse = new Map();
   for (const [core, details] of Object.entries(MASTER_SKILL_MAP)) {
@@ -223,13 +219,10 @@ export function buildMasterReverseMap() {
       // Also index the raw detail name as-is (case-insensitive)
       reverse.set(detail.toLowerCase(), core);
     }
-    // Also map the core skill name itself — EXCEPT for cores where the bare
-    // core name is too generic to be a real skill (e.g. "RPA").
-    if (!SELF_INDEX_EXCLUDED_CORES.has(core)) {
-      reverse.set(core.toLowerCase(), core);
-      const normCore = core.toLowerCase().replace(/[^a-z0-9]/g, " ").replace(/\s+/g, " ").trim();
-      reverse.set(normCore, core);
-    }
+    // Also map the core skill name itself
+    reverse.set(core.toLowerCase(), core);
+    const normCore = core.toLowerCase().replace(/[^a-z0-9]/g, " ").replace(/\s+/g, " ").trim();
+    reverse.set(normCore, core);
   }
   return reverse;
 }
