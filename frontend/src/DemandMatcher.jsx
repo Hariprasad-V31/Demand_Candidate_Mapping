@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
-import { processRows } from "./processing.js";
+import { processRows, detectColumns } from "./processing.js";
 import { MASTER_SKILL_MAP, CORE_SKILL_LIST, buildMasterReverseMap } from "../../shared/masterSkillMap.js";
 
 const AI_ENDPOINT = "https://models.inference.ai.azure.com/chat/completions";
@@ -277,6 +277,28 @@ export default function DemandMatcher() {
       console.log("Processed candidates:", processed.rows.length, "columns:", processed.columns);
 
       // ───────────────────────────────────────────────────────────
+      // Collect candidates whose Primary AND Secondary skills are both
+      // blank in the source sheet. These have no skill data to map, so
+      // they never appear in the matched results; we report them on a
+      // separate sheet so nothing is silently dropped.
+      // ───────────────────────────────────────────────────────────
+      const candBaseCols = Object.keys(candRows[0]);
+      const { primary: candPrimaryCol, secondary: candSecondaryCol } =
+        detectColumns(candBaseCols);
+      const isBlankCell = (v) =>
+        String(v ?? "").replace(/\u00a0/g, " ").trim() === "";
+      const missingSkillRows =
+        candPrimaryCol && candSecondaryCol
+          ? candRows.filter(
+              (r) =>
+                isBlankCell(r[candPrimaryCol]) && isBlankCell(r[candSecondaryCol])
+            )
+          : [];
+      console.log(
+        `Candidates missing both Primary & Secondary skills: ${missingSkillRows.length}`
+      );
+
+      // ───────────────────────────────────────────────────────────
       // STEP 2: Re-map ALL candidates using the Master Skill Table
       //   The Master Table is the single source of truth.
       //   Overwrite any previous CoreSkill with the Master Table result.
@@ -512,12 +534,15 @@ export default function DemandMatcher() {
       setMatchResult({
         rows: matchedRows,
         columns: processed.columns,
+        missingSkillRows,
+        missingSkillColumns: candBaseCols,
         stats: {
           totalCandidates: processed.rows.length,
           totalDemands: filteredDemandRows.length,
           uniqueDemandSkills: demandCoreSkills.size,
           matched: matchedRows.length,
           unmatched: unmatchedCount,
+          missingSkills: missingSkillRows.length,
           demandSkills: [...demandCoreSkills].sort(),
           demandLog,
           aiSteps: [
@@ -526,6 +551,7 @@ export default function DemandMatcher() {
             `Detected demand columns: ${[coreSkillCol, detailSkillCol, roleCol, ...fallbackSkillCols].filter(Boolean).join(", ")}`,
             `AI classified ${demandEntries.length} unique demand entries → ${demandCoreSkills.size} core skills (constrained to 52 categories)`,
             `Matched ${matchedRows.length}/${processed.rows.length} candidates to demand`,
+            `${missingSkillRows.length} candidate(s) had no Primary/Secondary skills (see separate sheet)`,
           ],
         },
       });
@@ -539,12 +565,23 @@ export default function DemandMatcher() {
   };
 
   const download = () => {
-    if (!matchResult || !matchResult.rows.length) return;
+    if (!matchResult) return;
+    const wb = XLSX.utils.book_new();
+
     const ws = XLSX.utils.json_to_sheet(matchResult.rows, {
       header: matchResult.columns,
     });
-    const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Matched Candidates");
+
+    // Second sheet: candidates missing both Primary & Secondary skills.
+    const missing = matchResult.missingSkillRows || [];
+    if (missing.length) {
+      const ws2 = XLSX.utils.json_to_sheet(missing, {
+        header: matchResult.missingSkillColumns,
+      });
+      XLSX.utils.book_append_sheet(wb, ws2, "Missing Primary-Secondary");
+    }
+
     const base = candFile.replace(/\.[^.]+$/, "") || "output";
     XLSX.writeFile(wb, `${base}_demand_matched.xlsx`);
   };
