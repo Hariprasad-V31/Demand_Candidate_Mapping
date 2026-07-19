@@ -31,9 +31,6 @@ export const MASTER_SKILL_MAP = {
   "Data Engineering": [
     "Google Data Engineering",
   ],
-  "Azure": [
-    "Microsoft Azure",
-  ],
   "Python": [
     "Python",
   ],
