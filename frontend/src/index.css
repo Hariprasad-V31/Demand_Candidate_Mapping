@@ -511,30 +511,27 @@ th {
   color: var(--accent);
 }
 
-/* ── Skill Mapping editor ─────────────────────────────────── */
-.ed-toolbar {
+
+/* ── Skill Mapping editor (simplified) ────────────────────── */
+.ed-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 12px;
+  margin-bottom: 6px;
 }
-.ed-toolbar-left { display: flex; align-items: center; gap: 8px; font-size: 16px; }
-.ed-toolbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.ed-badge {
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  color: var(--muted);
-}
-.ed-badge-custom { background: #e7f5ff; border-color: #a5d8ff; color: #1971c2; }
-.ed-badge-dirty { background: #fff3bf; border-color: #ffe066; color: #a67c00; }
+.ed-head-title { display: flex; align-items: center; gap: 10px; }
+.ed-head-title h2 { margin: 0; font-size: 20px; }
+.ed-head-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ed-sep { width: 1px; align-self: stretch; min-height: 24px; background: var(--border); margin: 0 2px; }
+.ed-pill { font-size: 12px; padding: 3px 10px; border-radius: 12px; border: 1px solid var(--border); }
+.ed-pill-ok { background: var(--panel-2); color: var(--muted); }
+.ed-pill-dirty { background: #fff3bf; border-color: #ffe066; color: #a67c00; }
+
 .ed-btn {
-  padding: 6px 12px;
-  font-size: 13px;
+  padding: 8px 16px;
+  font-size: 14px;
   border: 1px solid var(--border);
   background: var(--panel);
   color: var(--text);
@@ -542,74 +539,107 @@ th {
   cursor: pointer;
 }
 .ed-btn:hover:not(:disabled) { background: var(--panel-2); }
-.ed-btn:disabled { opacity: 0.45; cursor: default; }
-.ed-btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-.ed-btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
-.ed-btn-danger { color: var(--red); border-color: #f1aeb5; }
-.ed-btn-danger:hover:not(:disabled) { background: #fff5f5; }
-.ed-help { color: var(--muted); font-size: 13px; margin: 0 0 12px; line-height: 1.5; }
+.ed-btn:disabled { opacity: 0.4; cursor: default; }
+.ed-btn-primary { background: var(--green); color: #fff; border-color: var(--green); }
+.ed-btn-primary:hover:not(:disabled) { filter: brightness(0.94); }
+
+.ed-help { color: var(--muted); font-size: 13.5px; margin: 0 0 14px; line-height: 1.55; }
 .ed-notice {
   background: #ebfbee;
   border: 1px solid #b2f2bb;
   color: #2b8a3e;
-  padding: 8px 12px;
+  padding: 9px 12px;
   border-radius: 6px;
-  font-size: 13px;
-  margin-bottom: 12px;
+  font-size: 13.5px;
+  margin-bottom: 14px;
 }
-.ed-controls { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
-.ed-add-core { display: flex; gap: 8px; flex: 1; min-width: 260px; }
-.ed-add-core .ref-search { margin: 0; flex: 1; }
+
+.ed-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
 .ed-controls > .ref-search { margin: 0; flex: 1; min-width: 220px; }
-.ed-card-header { display: flex; align-items: center; gap: 10px; }
-.ed-core-input {
-  flex: 1;
+.ed-add-core { display: flex; gap: 8px; flex: 1 1 100%; }
+.ed-add-core .ref-search { margin: 0; flex: 1; }
+.ed-count { color: var(--muted); font-size: 13px; margin: 8px 0 14px; }
+
+/* Collapsible group */
+.ed-group {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.ed-group.open { border-color: #c7ccd1; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+.ed-group-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
   font-size: 15px;
-  font-weight: 600;
-  padding: 6px 8px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
   color: var(--text);
 }
-.ed-core-input:hover { border-color: var(--border); background: var(--panel); }
-.ed-core-input:focus { border-color: var(--accent); background: var(--panel); outline: none; }
-.ed-icon-btn { padding: 4px 10px; font-size: 12px; border-radius: 6px; cursor: pointer; background: var(--panel); border: 1px solid var(--border); }
-.ed-skill-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.ed-group-head:hover { background: var(--panel-2); }
+.ed-caret { color: var(--muted); width: 14px; font-size: 12px; }
+.ed-group-name { flex: 1; font-weight: 600; }
+
+.ed-group-body { padding: 4px 16px 16px; border-top: 1px solid var(--border); }
+.ed-field { display: block; }
+.ed-field-label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 5px; text-transform: uppercase; letter-spacing: 0.03em; }
+.ed-input {
+  width: 100%;
+  padding: 8px 11px;
+  font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  box-sizing: border-box;
+}
+.ed-input:focus { border-color: var(--accent); outline: none; }
+
+.ed-skill-list { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; }
 .ed-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   background: var(--panel-2);
   border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 3px 6px 3px 12px;
-  font-size: 13px;
+  border-radius: 16px;
+  padding: 4px 7px 4px 13px;
+  font-size: 13.5px;
 }
 .ed-chip-x {
   border: none;
   background: #e9ecef;
   color: var(--muted);
-  width: 18px;
-  height: 18px;
+  width: 19px;
+  height: 19px;
   border-radius: 50%;
   cursor: pointer;
   line-height: 1;
-  font-size: 14px;
+  font-size: 15px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 .ed-chip-x:hover { background: var(--red); color: #fff; }
 .ed-empty { color: var(--muted); font-size: 13px; font-style: italic; }
+
 .ed-add-row { display: flex; gap: 8px; }
-.ed-input {
-  flex: 1;
-  padding: 6px 10px;
+.ed-add-row .ed-input { flex: 1; }
+
+.ed-link-danger {
+  display: inline-block;
+  margin-top: 14px;
+  background: none;
+  border: none;
+  color: var(--red);
   font-size: 13px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--panel);
-  color: var(--text);
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
 }
-.ed-input:focus { border-color: var(--accent); outline: none; }

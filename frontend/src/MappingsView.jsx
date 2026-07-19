@@ -4,7 +4,6 @@ import {
   getActiveMap,
   setActiveMap,
   resetActiveMap,
-  isCustomized,
   useMappingVersion,
 } from "./mappingStore.js";
 
@@ -13,7 +12,6 @@ import {
 let ID_SEQ = 1;
 const nextId = () => ID_SEQ++;
 
-// Active map object -> editable entries array (stable ids for React keys).
 function mapToEntries(map) {
   return Object.entries(map).map(([core, details]) => ({
     id: nextId(),
@@ -22,7 +20,6 @@ function mapToEntries(map) {
   }));
 }
 
-// Entries array -> plain { core: [details] } object.
 function entriesToMap(entries) {
   const out = {};
   for (const e of entries) {
@@ -33,26 +30,23 @@ function entriesToMap(entries) {
   return out;
 }
 
-function sameMap(a, b) {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
+const sameMap = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
-/* ── Main editor ──────────────────────────────────────────── */
+/* ── Editor ───────────────────────────────────────────────── */
 
 export default function MappingsView() {
-  // Re-read the active map whenever it changes elsewhere (e.g. reset).
   const version = useMappingVersion();
   const active = getActiveMap();
 
   const [entries, setEntries] = useState(() => mapToEntries(active));
   const [search, setSearch] = useState("");
-  const [newCore, setNewCore] = useState("");
-  const [addText, setAddText] = useState({}); // { [entryId]: text }
+  const [expanded, setExpanded] = useState(() => new Set()); // ids of open cards
+  const [addText, setAddText] = useState({});
   const [notice, setNotice] = useState("");
+  const [showAddGroup, setShowAddGroup] = useState(false);
+  const [newCore, setNewCore] = useState("");
   const fileRef = useRef(null);
 
-  // Recompute draft-as-map and dirty flag. Reading the version snapshot ensures
-  // this re-runs after the active map changes elsewhere (save / reset / import).
   void version;
   const draftMap = useMemo(() => entriesToMap(entries), [entries]);
   const dirty = !sameMap(draftMap, active);
@@ -60,33 +54,52 @@ export default function MappingsView() {
   const flash = (msg) => {
     setNotice(msg);
     window.clearTimeout(flash._t);
-    flash._t = window.setTimeout(() => setNotice(""), 3000);
+    flash._t = window.setTimeout(() => setNotice(""), 3500);
   };
 
   const resync = () => {
     ID_SEQ = 1;
     setEntries(mapToEntries(getActiveMap()));
     setAddText({});
+    setExpanded(new Set());
   };
 
-  /* ── Edit operations (draft only) ── */
+  /* ── Edits (draft only) ── */
+
+  const toggle = (id) =>
+    setExpanded((s) => {
+      const n = new Set(s);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
 
   const addCore = () => {
     const name = newCore.trim();
     if (!name) return;
     if (entries.some((e) => e.core.toLowerCase() === name.toLowerCase())) {
-      flash(`Core "${name}" already exists.`);
+      flash(`"${name}" already exists.`);
       return;
     }
-    setEntries([{ id: nextId(), core: name, details: [] }, ...entries]);
+    const id = nextId();
+    setEntries([{ id, core: name, details: [] }, ...entries]);
+    setExpanded((s) => new Set(s).add(id));
     setNewCore("");
+    setShowAddGroup(false);
   };
 
   const renameCore = (id, name) =>
     setEntries((es) => es.map((e) => (e.id === id ? { ...e, core: name } : e)));
 
-  const deleteCore = (id) =>
-    setEntries((es) => es.filter((e) => e.id !== id));
+  const deleteCore = (id) => {
+    const e = entries.find((x) => x.id === id);
+    if (
+      e &&
+      (e.details.length === 0 ||
+        window.confirm(`Delete the "${e.core}" group and its ${e.details.length} skill(s)?`))
+    ) {
+      setEntries((es) => es.filter((x) => x.id !== id));
+    }
+  };
 
   const addDetail = (id) => {
     const text = (addText[id] || "").trim();
@@ -95,7 +108,7 @@ export default function MappingsView() {
       es.map((e) => {
         if (e.id !== id) return e;
         if (e.details.some((d) => d.toLowerCase() === text.toLowerCase())) {
-          flash(`"${text}" already listed under ${e.core}.`);
+          flash(`"${text}" is already in ${e.core}.`);
           return e;
         }
         return { ...e, details: [...e.details, text] };
@@ -113,53 +126,42 @@ export default function MappingsView() {
       )
     );
 
-  /* ── Persist / discard ── */
+  /* ── Save / undo / restore ── */
 
   const save = () => {
     const map = entriesToMap(entries);
     if (!Object.keys(map).length) {
-      flash("Nothing to save — add at least one core skill.");
+      flash("Add at least one skill group before saving.");
       return;
     }
     setActiveMap(map);
-    flash("Saved. The Demand Matcher now uses this mapping.");
+    flash("Saved. The Demand Matcher now uses these skills.");
   };
 
-  const discard = () => {
+  const undo = () => {
     resync();
-    flash("Reverted to the last saved mapping.");
+    flash("Your unsaved changes were undone.");
   };
 
-  const resetDefault = () => {
+  const restore = () => {
     if (
       !window.confirm(
-        "Reset to the built-in default mapping? This discards all your custom edits."
+        "Restore the original skills? This removes all your changes."
       )
     )
       return;
     resetActiveMap();
     resync();
-    flash("Restored the built-in default mapping.");
+    flash("Restored the original skill list.");
   };
 
-  /* ── Import / export ── */
+  /* ── Upload / download (Excel) ── */
 
-  const exportJSON = () => {
-    const blob = new Blob([JSON.stringify(entriesToMap(entries), null, 2)], {
-      type: "application/json",
-    });
-    triggerDownload(blob, "skill-mapping.json");
-  };
-
-  const exportExcel = () => {
+  const download = () => {
     const rows = [];
     for (const e of entries) {
-      if (e.details.length === 0) {
-        rows.push({ "Core Skill": e.core, "Detail Skill": "" });
-      } else {
-        for (const d of e.details)
-          rows.push({ "Core Skill": e.core, "Detail Skill": d });
-      }
+      if (e.details.length === 0) rows.push({ "Core Skill": e.core, "Detail Skill": "" });
+      else for (const d of e.details) rows.push({ "Core Skill": e.core, "Detail Skill": d });
     }
     const ws = XLSX.utils.json_to_sheet(rows, {
       header: ["Core Skill", "Detail Skill"],
@@ -169,212 +171,236 @@ export default function MappingsView() {
     XLSX.writeFile(wb, "skill-mapping.xlsx");
   };
 
-  const onImportFile = (e) => {
+  const onUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const isJSON = file.name.toLowerCase().endsWith(".json");
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
-        const imported = file.name.toLowerCase().endsWith(".json")
+        const imported = isJSON
           ? parseJSONMap(ev.target.result)
           : parseExcelMap(ev.target.result);
         if (!Object.keys(imported).length) {
-          flash("No mappings found in that file.");
+          flash("No skills found in that file.");
           return;
         }
         ID_SEQ = 1;
         setEntries(mapToEntries(imported));
+        setExpanded(new Set());
         setAddText({});
         flash(
-          `Imported ${Object.keys(imported).length} core skills. Review, then Save to apply.`
+          `Loaded ${Object.keys(imported).length} skill groups. Click "Save changes" to apply.`
         );
       } catch (err) {
-        flash(`Import failed: ${err.message}`);
+        flash(`Could not read that file: ${err.message}`);
       }
     };
     reader.onerror = () => flash("Could not read that file.");
-    if (file.name.toLowerCase().endsWith(".json"))
-      reader.readAsText(file);
+    if (isJSON) reader.readAsText(file);
     else reader.readAsArrayBuffer(file);
     e.target.value = "";
   };
 
-  /* ── Filtered view ── */
+  /* ── Filter ── */
 
-  const lower = search.toLowerCase();
+  const lower = search.trim().toLowerCase();
   const visible = useMemo(() => {
-    if (!lower) return entries;
-    return entries
-      .map((e) => {
-        const coreMatch = e.core.toLowerCase().includes(lower);
-        const details = coreMatch
-          ? e.details
-          : e.details.filter((d) => d.toLowerCase().includes(lower));
-        if (!coreMatch && details.length === 0) return null;
-        return { ...e, _details: details };
-      })
-      .filter(Boolean);
+    if (!lower) return entries.map((e) => ({ e, details: e.details }));
+    const out = [];
+    for (const e of entries) {
+      const coreMatch = e.core.toLowerCase().includes(lower);
+      const details = coreMatch
+        ? e.details
+        : e.details.filter((d) => d.toLowerCase().includes(lower));
+      if (coreMatch || details.length) out.push({ e, details });
+    }
+    return out;
   }, [entries, lower]);
 
   const totalSkills = entries.reduce((a, e) => a + e.details.length, 0);
+  const isOpen = (id) => expanded.has(id) || !!lower; // searching auto-opens matches
 
   return (
     <div className="ref-container">
-      {/* Toolbar */}
-      <div className="ed-toolbar">
-        <div className="ed-toolbar-left">
-          <strong>Skill Mapping</strong>
-          {isCustomized() ? (
-            <span className="ed-badge ed-badge-custom">Customized</span>
+      {/* Simple header */}
+      <div className="ed-head">
+        <div className="ed-head-title">
+          <h2>Skill list</h2>
+          {dirty ? (
+            <span className="ed-pill ed-pill-dirty">Unsaved changes</span>
           ) : (
-            <span className="ed-badge">Built-in default</span>
+            <span className="ed-pill ed-pill-ok">All changes saved</span>
           )}
-          {dirty && <span className="ed-badge ed-badge-dirty">Unsaved changes</span>}
         </div>
-        <div className="ed-toolbar-right">
+        <div className="ed-head-actions">
           <button className="ed-btn ed-btn-primary" onClick={save} disabled={!dirty}>
-            Save
+            Save changes
           </button>
-          <button className="ed-btn" onClick={discard} disabled={!dirty}>
-            Discard
+          {dirty && (
+            <button className="ed-btn" onClick={undo}>
+              Undo
+            </button>
+          )}
+          <span className="ed-sep" />
+          <button className="ed-btn" onClick={download}>
+            Download
           </button>
           <button className="ed-btn" onClick={() => fileRef.current?.click()}>
-            Import…
+            Upload
           </button>
-          <button className="ed-btn" onClick={exportJSON}>
-            Export JSON
-          </button>
-          <button className="ed-btn" onClick={exportExcel}>
-            Export Excel
-          </button>
-          <button className="ed-btn ed-btn-danger" onClick={resetDefault}>
-            Reset to default
+          <button className="ed-btn ed-btn-danger" onClick={restore}>
+            Restore original
           </button>
           <input
             ref={fileRef}
             type="file"
-            accept=".json,.xlsx,.xls"
+            accept=".xlsx,.xls,.json"
             hidden
-            onChange={onImportFile}
+            onChange={onUpload}
           />
         </div>
       </div>
 
       <p className="ed-help">
-        Edit which detailed skills map to each core skill. Changes are saved in
-        this browser and used by the Demand Matcher after you click{" "}
-        <strong>Save</strong>. Import/Export lets you back up or share the
-        mapping (Excel = two columns: <em>Core Skill</em>, <em>Detail Skill</em>).
+        Group the skills the matcher understands. Click a group to see or change
+        its skills. Remember to <strong>Save changes</strong> when you're done.
       </p>
 
       {notice && <div className="ed-notice">{notice}</div>}
 
-      {/* Add core + search */}
+      {/* Search + add group */}
       <div className="ed-controls">
-        <div className="ed-add-core">
-          <input
-            className="ref-search"
-            placeholder="New core skill name…"
-            value={newCore}
-            onChange={(e) => setNewCore(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addCore()}
-          />
-          <button className="ed-btn ed-btn-primary" onClick={addCore}>
-            + Add core
-          </button>
-        </div>
         <input
           className="ref-search"
-          placeholder="Search skills or cores…"
+          placeholder="Search a skill or group…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+        {showAddGroup ? (
+          <div className="ed-add-core">
+            <input
+              className="ref-search"
+              autoFocus
+              placeholder="New group name…"
+              value={newCore}
+              onChange={(e) => setNewCore(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") addCore();
+                if (e.key === "Escape") {
+                  setShowAddGroup(false);
+                  setNewCore("");
+                }
+              }}
+            />
+            <button className="ed-btn ed-btn-primary" onClick={addCore}>
+              Add
+            </button>
+            <button
+              className="ed-btn"
+              onClick={() => {
+                setShowAddGroup(false);
+                setNewCore("");
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button className="ed-btn" onClick={() => setShowAddGroup(true)}>
+            + New group
+          </button>
+        )}
       </div>
 
-      <div className="ref-stats" style={{ marginBottom: 12 }}>
-        {search
-          ? `Showing ${visible.length} cores (filtered)`
-          : `${entries.length} core skills · ${totalSkills} detail skills`}
+      <div className="ed-count">
+        {lower
+          ? `${visible.length} group(s) match "${search.trim()}"`
+          : `${entries.length} groups · ${totalSkills} skills`}
       </div>
 
-      {/* Cards */}
-      {visible.map((e) => {
-        const details = search ? e._details : e.details;
+      {/* Collapsible list */}
+      {visible.map(({ e, details }) => {
+        const open = isOpen(e.id);
         return (
-          <div key={e.id} className="ref-card">
-            <div className="ref-card-header ed-card-header">
-              <input
-                className="ed-core-input"
-                value={e.core}
-                onChange={(ev) => renameCore(e.id, ev.target.value)}
-              />
+          <div key={e.id} className={`ed-group ${open ? "open" : ""}`}>
+            <button className="ed-group-head" onClick={() => toggle(e.id)}>
+              <span className="ed-caret">{open ? "▾" : "▸"}</span>
+              <span className="ed-group-name">{e.core}</span>
               <span className="ref-badge">{e.details.length}</span>
-              <button
-                className="ed-icon-btn ed-btn-danger"
-                title="Delete this core skill"
-                onClick={() => deleteCore(e.id)}
-              >
-                Delete
-              </button>
-            </div>
-            <div className="ref-card-body">
-              <div className="ed-skill-list">
-                {details.map((d) => {
-                  const realIdx = e.details.indexOf(d);
-                  return (
-                    <span key={d} className="ed-chip">
-                      {d}
-                      <button
-                        className="ed-chip-x"
-                        title="Remove"
-                        onClick={() => deleteDetail(e.id, realIdx)}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  );
-                })}
-                {details.length === 0 && (
-                  <span className="ed-empty">No detail skills</span>
-                )}
-              </div>
-              <div className="ed-add-row">
-                <input
-                  className="ed-input"
-                  placeholder="Add detail skill…"
-                  value={addText[e.id] || ""}
-                  onChange={(ev) =>
-                    setAddText((t) => ({ ...t, [e.id]: ev.target.value }))
-                  }
-                  onKeyDown={(ev) => ev.key === "Enter" && addDetail(e.id)}
-                />
-                <button className="ed-btn" onClick={() => addDetail(e.id)}>
-                  Add
+            </button>
+
+            {open && (
+              <div className="ed-group-body">
+                <label className="ed-field">
+                  <span className="ed-field-label">Group name</span>
+                  <input
+                    className="ed-input"
+                    value={e.core}
+                    onChange={(ev) => renameCore(e.id, ev.target.value)}
+                  />
+                </label>
+
+                <div className="ed-field-label" style={{ marginTop: 10 }}>
+                  Skills in this group
+                </div>
+                <div className="ed-skill-list">
+                  {details.map((d) => {
+                    const realIdx = e.details.indexOf(d);
+                    return (
+                      <span key={d} className="ed-chip">
+                        {d}
+                        <button
+                          className="ed-chip-x"
+                          title="Remove"
+                          onClick={() => deleteDetail(e.id, realIdx)}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    );
+                  })}
+                  {e.details.length === 0 && (
+                    <span className="ed-empty">No skills yet</span>
+                  )}
+                </div>
+
+                <div className="ed-add-row">
+                  <input
+                    className="ed-input"
+                    placeholder="Type a skill and press Enter…"
+                    value={addText[e.id] || ""}
+                    onChange={(ev) =>
+                      setAddText((t) => ({ ...t, [e.id]: ev.target.value }))
+                    }
+                    onKeyDown={(ev) => ev.key === "Enter" && addDetail(e.id)}
+                  />
+                  <button className="ed-btn" onClick={() => addDetail(e.id)}>
+                    Add skill
+                  </button>
+                </div>
+
+                <button
+                  className="ed-link-danger"
+                  onClick={() => deleteCore(e.id)}
+                >
+                  Delete this group
                 </button>
               </div>
-            </div>
+            )}
           </div>
         );
       })}
+
     </div>
   );
 }
 
 /* ── File parsing ─────────────────────────────────────────── */
 
-function triggerDownload(blob, name) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 function parseJSONMap(text) {
   const data = JSON.parse(text);
   if (Array.isArray(data)) {
-    // array of {core, details} or {"Core Skill","Detail Skill"}
     const out = {};
     for (const row of data) {
       const core = String(row.core ?? row["Core Skill"] ?? "").trim();
@@ -389,8 +415,8 @@ function parseJSONMap(text) {
     }
     return out;
   }
-  if (data && typeof data === "object") return data; // { core: [details] }
-  throw new Error("Unrecognized JSON structure");
+  if (data && typeof data === "object") return data;
+  throw new Error("unexpected file contents");
 }
 
 function parseExcelMap(arrayBuffer) {
@@ -398,11 +424,10 @@ function parseExcelMap(arrayBuffer) {
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
   if (!rows.length) return {};
-  // detect columns case-insensitively
   const keys = Object.keys(rows[0]);
   const coreKey =
     keys.find((k) => /core\s*skill/i.test(k)) ||
-    keys.find((k) => /core|category/i.test(k)) ||
+    keys.find((k) => /core|category|group/i.test(k)) ||
     keys[0];
   const detailKey =
     keys.find((k) => /detail\s*skill/i.test(k)) ||
