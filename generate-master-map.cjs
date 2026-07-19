@@ -58,95 +58,6 @@ const MASTER_TABLE = [
   ["SAP BTP", ["SAP Business Technology Platform (BTP) - Integration Suite"]],
 ];
 
-// Core skill -> Domain / Sub-Domain, derived (most frequent) from the demand
-// reference data. Used by the in-app Skill Mapping reference view. Cores not
-// present in the demand data are omitted and render as "—".
-const CORE_TO_DOMAIN = {
-  "By WMS Dispatcher": "FH&B and International FH&B",
-  "Java": "Food and International Food",
-  "Python": "Engineering",
-  "Angular": "Food and International Food",
-  "DevOps": "Food and International Food",
-  "Database Engineer (Oracle)": "Platform Domain",
-  "Linux": "Platform Domain",
-  "Automation Testing": "FH&B and International FH&B",
-  "Manual Testing": "FH&B and International FH&B",
-  "SAP ABAP": "Central",
-  "SAP BASIS": "Central",
-  "VMWare": "Platform Domain",
-  "Network Engineer": "Platform Domain",
-  "Mulesoft": "EBP",
-  "PLM": "FH&B and International FH&B",
-  "Product Management": "FH&B and International FH&B",
-  "Program Management": "Food and International Food",
-  "Solution Architect": "FH&B and International FH&B",
-  "Business Analyst": "BPS DOS",
-  "Oracle HCM": "Central",
-  "Power BI": "Data & AI Domain",
-  "MiddleWare": "Platform Domain",
-  "Performance Testing": "FH&B and International FH&B",
-  "Mainframe": "Online",
-  "Apigee": "EBP",
-  "SQL Developer": "FH&B and International FH&B",
-  "SCCM Engineer": "Platform Domain",
-  "Data Modeller": "FH&B and International FH&B",
-  "Incident Manager": "Platform Domain",
-  "Change Management": "Platform Domain",
-  "Data Stage": "Platform Domain",
-  "SharePoint Admin": "Platform Domain",
-  "VMO Lead": "Platform Domain",
-  "Software Asset Manager": "Platform Domain",
-  "Sterling OMS": "Online",
-  "BY Work Force Management": "Central",
-  "SAP S4 HANA Finance": "Central",
-  "ITAM": "Platform Domain",
-  "Intune": "Platform Domain",
-  "SAP BTP": "Central",
-};
-
-const CORE_TO_SUBDOMAIN = {
-  "By WMS Dispatcher": "Supply Chain & Logistics",
-  "Java": "Design, Buy, Make",
-  "Python": "Engineering",
-  "Angular": "Commercial Planning",
-  "DevOps": "Commercial Planning",
-  "Database Engineer (Oracle)": "Connectivity",
-  "Linux": "Connectivity",
-  "Automation Testing": "Supply Chain & Logistics",
-  "Manual Testing": "Post-Purchase",
-  "SAP ABAP": "Finance",
-  "SAP BASIS": "Finance",
-  "VMWare": "Connectivity",
-  "Network Engineer": "Network",
-  "Mulesoft": "Enterprise Integration",
-  "PLM": "Design, Buy, Make",
-  "Product Management": "Design, Buy, Make",
-  "Program Management": "Commercial Planning",
-  "Solution Architect": "Design, Buy, Make",
-  "Business Analyst": "BPS DOS",
-  "Oracle HCM": "People",
-  "Power BI": "Data Product",
-  "MiddleWare": "Connectivity",
-  "Performance Testing": "Finance",
-  "Mainframe": "Customer Programmes",
-  "Apigee": "Enterprise Integration",
-  "SQL Developer": "Supply Chain & Logistics",
-  "SCCM Engineer": "Connectivity",
-  "Data Modeller": "Design, Buy, Make",
-  "Incident Manager": "Service Management",
-  "Change Management": "Service Management",
-  "Data Stage": "Colleague Productivity & Enablement",
-  "SharePoint Admin": "Colleague Productivity & Enablement",
-  "VMO Lead": "Vendor Management Office",
-  "Software Asset Manager": "Vendor Management Office",
-  "Sterling OMS": "Post-Purchase",
-  "BY Work Force Management": "People",
-  "SAP S4 HANA Finance": "Finance",
-  "ITAM": "Connectivity",
-  "Intune": "Colleague Productivity & Enablement",
-  "SAP BTP": "Finance",
-};
-
 // Generate the JS module
 let output = `// Master Skill Table - Authoritative skill mapping
 // Generated from the official skill mapping reference table
@@ -166,9 +77,6 @@ for (const [core, details] of MASTER_TABLE) {
 output += `};\n\n`;
 output += `// List of valid core skill categories (for constraining AI demand classification)\n`;
 output += `export const CORE_SKILL_LIST = Object.keys(MASTER_SKILL_MAP);\n\n`;
-output += `// Core skill -> Domain / Sub-Domain (most frequent in the demand reference data).\n`;
-output += `export const CORE_TO_DOMAIN = ${JSON.stringify(CORE_TO_DOMAIN, null, 2)};\n\n`;
-output += `export const CORE_TO_SUBDOMAIN = ${JSON.stringify(CORE_TO_SUBDOMAIN, null, 2)};\n\n`;
 output += `// Build reverse map: normalized detail skill name -> core skill\n`;
 output += `export function buildMasterReverseMap() {\n`;
 output += `  const reverse = new Map();\n`;
