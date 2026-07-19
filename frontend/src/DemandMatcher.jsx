@@ -9,6 +9,23 @@ const AI_ENDPOINT = "https://models.inference.ai.azure.com/chat/completions";
 const MASTER_REVERSE = buildMasterReverseMap();
 const AI_MODEL = "gpt-4o-mini";
 
+// Resolve a single detail skill to a Master Skill Table core skill (or "").
+// Used both when SELECTING a candidate's priority skill (so unmapped skills
+// such as generic "Azure" are skipped in favour of the next skill that maps)
+// and when FINAL-mapping that selected skill — one lookup, one source of truth.
+function masterLookup(detailSkill) {
+  const s = String(detailSkill ?? "").trim();
+  if (!s) return "";
+  const norm = s.toLowerCase().replace(/[^a-z0-9]/g, " ").replace(/\s+/g, " ").trim();
+  const stripped = s.replace(/^.*?:\s*/, "").toLowerCase().replace(/[^a-z0-9]/g, " ").replace(/\s+/g, " ").trim();
+  return (
+    MASTER_REVERSE.get(norm) ||
+    MASTER_REVERSE.get(stripped) ||
+    MASTER_REVERSE.get(s.toLowerCase()) ||
+    ""
+  );
+}
+
 /** Delay helper for rate limiting */
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -265,13 +282,16 @@ export default function DemandMatcher() {
       // ───────────────────────────────────────────────────────────
       // STEP 1: Process candidates using existing logic
       //   - Remove E0 skills
-      //   - Select highest priority skill
-      //   - Map to core skill via old SKILL_MAP (for backward compat)
+      //   - Select highest priority skill THAT MAPS in the Master Table
+      //     (so unmapped skills like generic "Azure" are skipped rather
+      //     than chosen and then dropped in STEP 2)
+      //   - Map to core skill via the Master Table
       // ───────────────────────────────────────────────────────────
       setProgress("Step 1: Processing candidates (E0 removal → priority skill selection)...");
       const processed = processRows(candRows, {
         removeE0: true,
         addPriority: true,
+        coreMapper: masterLookup,
       });
 
       console.log("Processed candidates:", processed.rows.length, "columns:", processed.columns);
@@ -299,9 +319,10 @@ export default function DemandMatcher() {
       );
 
       // ───────────────────────────────────────────────────────────
-      // STEP 2: Re-map ALL candidates using the Master Skill Table
-      //   The Master Table is the single source of truth.
-      //   Overwrite any previous CoreSkill with the Master Table result.
+      // STEP 2: Confirm each candidate's Master Skill Table core skill.
+      //   Selection in STEP 1 already used the Master Table, so the
+      //   chosen "Detail Skill Set" is guaranteed to resolve here; this
+      //   pass just recomputes CoreSkill from the same lookup and counts.
       // ───────────────────────────────────────────────────────────
       setProgress("Step 2: Mapping candidates to Master Skill Table (52 core skills)...");
 
@@ -309,27 +330,10 @@ export default function DemandMatcher() {
       let unmappedCount = 0;
       for (const row of processed.rows) {
         const detailSkill = String(row["Detail Skill Set"] || "").trim();
-        if (!detailSkill) {
-          row["CoreSkill"] = "";
-          unmappedCount++;
-          continue;
-        }
-
-        // Try to match against Master Reverse Map
-        const norm = detailSkill.toLowerCase().replace(/[^a-z0-9]/g, " ").replace(/\s+/g, " ").trim();
-        const stripped = detailSkill.replace(/^.*?:\s*/, "").toLowerCase().replace(/[^a-z0-9]/g, " ").replace(/\s+/g, " ").trim();
-
-        const core = MASTER_REVERSE.get(norm) ||
-                     MASTER_REVERSE.get(stripped) ||
-                     MASTER_REVERSE.get(detailSkill.toLowerCase()) || "";
-
-        if (core) {
-          row["CoreSkill"] = core;
-          masterMapped++;
-        } else {
-          row["CoreSkill"] = "";
-          unmappedCount++;
-        }
+        const core = masterLookup(detailSkill);
+        row["CoreSkill"] = core;
+        if (core) masterMapped++;
+        else unmappedCount++;
       }
 
       console.log(`Master Table mapped: ${masterMapped}, Unmapped: ${unmappedCount}`);

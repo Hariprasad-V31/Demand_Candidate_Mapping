@@ -183,12 +183,12 @@ function rankedSkills(primaryCell, secondaryCell) {
  * priority skill (even though it has no mapping).
  * @returns {{ skill: string, core: string }}
  */
-export function selectSkillAndCore(primaryCell, secondaryCell) {
+export function selectSkillAndCore(primaryCell, secondaryCell, coreMapper = mapCoreSkill) {
   const ranked = rankedSkills(primaryCell, secondaryCell);
   if (!ranked.length) return { skill: "", core: "" };
 
   for (const { skillName } of ranked) {
-    const core = mapCoreSkill(skillName);
+    const core = coreMapper(skillName);
     if (core) return { skill: skillName, core };
   }
   // No mapping for any skill -> fall back to the top-priority skill.
@@ -365,11 +365,14 @@ function parseExperience(value) {
 /**
  * Transform an array of row objects.
  * @param {Object[]} rows
- * @param {{removeE0:boolean, addPriority:boolean}} options
+ * @param {{removeE0:boolean, addPriority:boolean, coreMapper?:(skill:string)=>string}} options
+ *   coreMapper overrides how a detail skill is resolved to a core skill during
+ *   priority selection (defaults to the legacy SKILL_MAP-based mapper). Pass the
+ *   Master Skill Table lookup so selection and final matching use one source.
  * @returns {{rows:Object[], columns:string[], stats:Object}}
  */
 export function processRows(rows, options) {
-  const { removeE0, addPriority } = options;
+  const { removeE0, addPriority, coreMapper } = options;
   if (!rows.length) return { rows: [], columns: [], stats: { rowsProcessed: 0 } };
 
   const baseColumns = Object.keys(rows[0]);
@@ -434,7 +437,8 @@ export function processRows(rows, options) {
     if (addPriority) {
       const { skill, core } = selectSkillAndCore(
         out[primaryCol],
-        out[secondaryCol]
+        out[secondaryCol],
+        coreMapper
       );
       out[OUT_SKILL_COL] = skill;
       out[OUT_CORE_COL] = core;
