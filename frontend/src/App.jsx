@@ -118,7 +118,7 @@ export default function App() {
           className={`page-tab ${page === "reference" ? "active" : ""}`}
           onClick={() => setPage("reference")}
         >
-          Skill Mapping Reference
+          Skill Mapping
         </div>
       </div>
 

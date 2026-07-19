@@ -1,27 +1,28 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { processRows, detectColumns } from "./processing.js";
-import { MASTER_SKILL_MAP, CORE_SKILL_LIST, buildMasterReverseMap } from "../../shared/masterSkillMap.js";
+import { getActiveReverse, getCoreList } from "./mappingStore.js";
 
 const AI_ENDPOINT = "https://models.inference.ai.azure.com/chat/completions";
 
-// Build the reverse map once at load time
-const MASTER_REVERSE = buildMasterReverseMap();
 const AI_MODEL = "gpt-4o-mini";
 
-// Resolve a single detail skill to a Master Skill Table core skill (or "").
-// Used both when SELECTING a candidate's priority skill (so unmapped skills
-// such as generic "Azure" are skipped in favour of the next skill that maps)
-// and when FINAL-mapping that selected skill — one lookup, one source of truth.
+// Resolve a single detail skill to the active Skill Table core skill (or "").
+// Reads the reverse index from the mapping store, so any user edits to the
+// mapping (persisted in localStorage) take effect immediately. Used both when
+// SELECTING a candidate's priority skill (so unmapped skills such as generic
+// "Azure" are skipped in favour of the next skill that maps) and when
+// FINAL-mapping that selected skill — one lookup, one source of truth.
 function masterLookup(detailSkill) {
   const s = String(detailSkill ?? "").trim();
   if (!s) return "";
+  const rev = getActiveReverse();
   const norm = s.toLowerCase().replace(/[^a-z0-9]/g, " ").replace(/\s+/g, " ").trim();
   const stripped = s.replace(/^.*?:\s*/, "").toLowerCase().replace(/[^a-z0-9]/g, " ").replace(/\s+/g, " ").trim();
   return (
-    MASTER_REVERSE.get(norm) ||
-    MASTER_REVERSE.get(stripped) ||
-    MASTER_REVERSE.get(s.toLowerCase()) ||
+    rev.get(norm) ||
+    rev.get(stripped) ||
+    rev.get(s.toLowerCase()) ||
     ""
   );
 }
@@ -133,7 +134,7 @@ Example: {"core_skill": "Core Skill Group", "detail_skill": "Detail Skill", "rol
  * AI-powered: Classify demand requirements into core skill categories.
  */
 async function aiClassifyDemandSkills(token, demandEntries, onProgress) {
-  const coreSkillsList = CORE_SKILL_LIST.join(", ");
+  const coreSkillsList = getCoreList().join(", ");
   const systemPrompt = `You are an IT demand/requirement classification expert. Given demand entries, classify each into ONE of these EXACT core skill categories ONLY:
 
 ${coreSkillsList}

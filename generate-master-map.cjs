@@ -77,10 +77,12 @@ for (const [core, details] of MASTER_TABLE) {
 output += `};\n\n`;
 output += `// List of valid core skill categories (for constraining AI demand classification)\n`;
 output += `export const CORE_SKILL_LIST = Object.keys(MASTER_SKILL_MAP);\n\n`;
-output += `// Build reverse map: normalized detail skill name -> core skill\n`;
-output += `export function buildMasterReverseMap() {\n`;
+output += `// Build reverse map: normalized detail skill name -> core skill.\n`;
+output += `// Accepts an optional map so callers can build a reverse index for a custom\n`;
+output += `// (user-edited) mapping; defaults to the built-in Master Skill Table.\n`;
+output += `export function buildMasterReverseMap(map = MASTER_SKILL_MAP) {\n`;
 output += `  const reverse = new Map();\n`;
-output += `  for (const [core, details] of Object.entries(MASTER_SKILL_MAP)) {\n`;
+output += `  for (const [core, details] of Object.entries(map)) {\n`;
 output += `    for (const detail of details) {\n`;
 output += `      // Index the full normalized name\n`;
 output += `      const norm = detail.toLowerCase().replace(/[^a-z0-9]/g, " ").replace(/\\s+/g, " ").trim();\n`;
