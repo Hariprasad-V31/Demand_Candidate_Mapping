@@ -137,6 +137,21 @@ export function cleanE0(value) {
   return kept.join(" ; ");
 }
 
+// Segments to exclude from the "Detailed Skill Set - P&S" column: E0 (no
+// competency) plus the low proficiency levels L1 and L2.
+const PS_EXCLUDE_PATTERN = /\[\s*(?:E0|L1|L2)\b/i;
+
+// Drop E0/L1/L2 skill segments from a Primary/Secondary cell, returning the
+// remaining segments joined by " ; " (or "" when none remain).
+export function cleanPandSLevels(value) {
+  if (value === null || value === undefined) return "";
+  return String(value)
+    .split(";")
+    .map((s) => s.trim())
+    .filter((s) => s && !PS_EXCLUDE_PATTERN.test(s))
+    .join(" ; ");
+}
+
 // --- Priority skill selection ----------------------------------------------
 function parseSkills(cell) {
   const result = [];
@@ -428,9 +443,10 @@ export function processRows(rows, options) {
       out[secondaryCol] = cleanE0(out[secondaryCol]);
     }
 
-    // Concatenate the (processed) Primary and Secondary skill cells.
+    // Concatenate the Primary and Secondary skill cells, excluding E0/L1/L2
+    // segments (E0 already dropped by removeE0; L1/L2 are low-proficiency).
     out[OUT_PS_COL] = [out[primaryCol], out[secondaryCol]]
-      .map((v) => String(v ?? "").trim())
+      .map((v) => cleanPandSLevels(v))
       .filter(Boolean)
       .join(" ; ");
 
