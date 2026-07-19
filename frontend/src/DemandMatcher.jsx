@@ -138,11 +138,20 @@ async function aiClassifyDemandSkills(token, demandEntries, onProgress) {
 
 ${coreSkillsList}
 
-Rules:
-- You MUST pick from the list above. Do not invent new categories.
-- If none of the categories match, return empty string for core_skill.
-- Match based on the technology/skill, not the role title.
-- "Java Developer" → "Java", "React Lead" → "ReactJS", ".NET Engineer" → pick closest or empty.
+STRICT ANTI-HALLUCINATION RULES — follow without exception:
+- You MUST pick from the list above VERBATIM. Never invent, rename, merge, or approximate a category.
+- Map ONLY when the demand skill is genuinely the SAME technology/skill as the category. It must be an exact or unambiguous match.
+- DO NOT guess, infer, or generalize from broad themes or shared words. A shared keyword is NOT a match.
+- If you are not certain it is a true match, return an EMPTY string ("") for core_skill. Empty is ALWAYS preferred over a weak or "closest" guess.
+- Never map a specialized/different skill to a category just because the names look similar.
+
+CRITICAL NEGATIVE EXAMPLES (these must NOT be mapped to "Cybersecurity" or any category unless one literally equals the skill):
+- "Security Champion", "Network Security", "Cloud Security Engineer", "IAM", "Cyber Engineer", "Security Engineering", "Security Architect - Enterprise Security", "SAP Security", "MDM-Security & Lineage SME (IAM)" → core_skill "" (they are distinct security roles, NOT the "Cybersecurity" category).
+- Sharing the word "Security", "Cloud", "Data", or "Engineer" with a category is NOT sufficient to match.
+
+Matching guidance:
+- Match based on the technology/skill, not the role title. "Java Developer" → "Java", "React Lead" → "ReactJS".
+- ".NET Engineer", or anything with no exact category → "" (empty).
 - Also assign a domain from: Technology, Digital, BFSI, Healthcare, Retail, Manufacturing, Telecom, Energy, Media, Infrastructure, Analytics, ERP, Security, Cloud, Management, Platform Domain, Data & AI Domain, Food and International Food, FH&B and International FH&B.`;
 
   const batchSize = 30;
@@ -154,7 +163,8 @@ Rules:
       onProgress(`AI classifying demand skills: ${i + batch.length}/${demandEntries.length}`);
     }
 
-    const userPrompt = `Classify these demand/requirement entries into core skill categories and assign a domain:
+    const userPrompt = `Classify these demand/requirement entries into core skill categories and assign a domain.
+Apply the STRICT ANTI-HALLUCINATION RULES: only assign a category on a genuine exact match; if unsure, use "" (empty). Do NOT map security roles like "Network Security"/"IAM"/"Security Champion" to "Cybersecurity".
 ${batch.map((entry, idx) => `${idx + 1}. ${JSON.stringify(entry)}`).join("\n")}
 
 Respond ONLY with a JSON array: [{"index": 1, "core_skill": "...", "domain": "...", "confidence": "high|medium|low"}]`;
