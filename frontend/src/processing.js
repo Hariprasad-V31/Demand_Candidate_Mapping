@@ -6,6 +6,7 @@ export const SECONDARY_COL = "Secondary";
 export const OUT_SKILL_COL = "Highest Priority Detailed Skillset";
 export const OUT_CORE_COL = "Mapped Core Skill";
 export const OUT_SCORE_COL = "Score";
+export const OUT_PS_COL = "Detailed Skill Set - P&S";
 
 // Fixed output layout. `keys` are header keywords matched against the input
 // (normalized, alphanumeric only); `computed` pulls from a value generated
@@ -27,6 +28,7 @@ export const OUTPUT_TEMPLATE = [
   { out: "Exp", keys: ["expbucket", "experience", "exp"] },
   { out: "CoreSkill", computed: OUT_CORE_COL },
   { out: "Detail Skill Set", computed: OUT_SKILL_COL },
+  { out: "Detailed Skill Set - P&S", computed: OUT_PS_COL },
   { out: "Domain", domain: true },
   { out: "Ranking/Score", computed: OUT_SCORE_COL },
 ];
@@ -422,6 +424,12 @@ export function processRows(rows, options) {
       out[primaryCol] = cleanE0(out[primaryCol]);
       out[secondaryCol] = cleanE0(out[secondaryCol]);
     }
+
+    // Concatenate the (processed) Primary and Secondary skill cells.
+    out[OUT_PS_COL] = [out[primaryCol], out[secondaryCol]]
+      .map((v) => String(v ?? "").trim())
+      .filter(Boolean)
+      .join(" ; ");
 
     if (addPriority) {
       const { skill, core } = selectSkillAndCore(
