@@ -19,7 +19,7 @@ export const OUTPUT_TEMPLATE = [
   { out: "Service Line(DU)", keys: ["serviceline", "serviceline du", "du"] },
   { out: "profile shared by", keys: ["profilesharedby", "sharedby"] },
   { out: "Source", keys: ["source"] },
-  { out: "Location", keys: ["location"] },
+  { out: "Location", keys: ["geo"] },
   { out: "War room(Y/N)", keys: ["warroom"] },
   { out: "Emp", keys: ["empid", "employeeid", "emp"] },
   { out: "Emp Name", keys: ["empname", "employeename", "candidatename", "name"] },
